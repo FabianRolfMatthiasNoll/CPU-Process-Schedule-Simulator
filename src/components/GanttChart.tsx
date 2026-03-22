@@ -19,34 +19,28 @@ function getProcessColor(processId: string): string {
 }
 
 export default function GanttChart() {
-  const { ganttEntries, processes, currentTime, runningProcessId, runningSince, ioBlocks, currentIoProcess, blockedQueue } = useSimulationStore();
+  const {
+    ganttEntries,
+    currentTime,
+    runningProcessId,
+    processDefinitions,
+  } = useSimulationStore();
+
+  // Get process IDs from definitions
+  const processIds = processDefinitions.map((p) => p.id);
 
   // Calculate timeline bounds
-  const ganttMaxTime = ganttEntries.length > 0 ? Math.max(...ganttEntries.map(e => e.endTime)) : 10;
-  const ioMaxTime = ioBlocks.length > 0 ? Math.max(...ioBlocks.map(e => e.endTime)) : 0;
-  const processMaxTime = processes.length > 0
-    ? Math.max(...processes.map(p => p.arrivalTime + p.bursts.reduce((sum, b) => sum + b.duration, 0)))
+  const ganttMaxTime = ganttEntries.length > 0 ? Math.max(...ganttEntries.map((e: GanttEntry) => e.endTime)) : 10;
+  const processMaxTime = processDefinitions.length > 0
+    ? Math.max(...processDefinitions.map(p => p.arrivalTime + p.bursts.reduce((sum: number, b: { duration: number }) => sum + b.duration, 0)))
     : 10;
-  const maxTime = Math.max(ganttMaxTime, ioMaxTime, processMaxTime, currentTime + 3, 10);
+  const maxTime = Math.max(ganttMaxTime, processMaxTime, currentTime + 3, 10);
 
   const pixelsPerUnit = 60;
   const rowHeight = 40;
   const labelWidth = 50;
 
-  const processIds = processes.map((p) => p.id);
-
-  // Build CPU blocks from ganttEntries - show completed blocks
-  const completedCpuBlocks = ganttEntries.filter((e: GanttEntry) => e.endTime <= currentTime);
-
-  // Build IO blocks from ioBlocks - show completed blocks
-  const completedIoBlocks = ioBlocks.filter((e) => e.endTime <= currentTime);
-
-  // Current running block - use runningSince to know when current process started
-  const currentRunningBlock = runningProcessId && runningSince !== null
-    ? { processId: runningProcessId, startTime: runningSince }
-    : null;
-
-  console.log('[GanttChart] currentTime=', currentTime, 'ganttEntries=', ganttEntries, 'running=', runningProcessId, 'runningSince=', runningSince, 'ioBlocks=', ioBlocks, 'currentIo=', currentIoProcess, 'blocked=', blockedQueue);
+  console.log('[GanttChart] currentTime=', currentTime, 'ganttEntries=', ganttEntries, 'running=', runningProcessId);
 
   return (
     <div className="bg-white rounded-lg shadow p-4 flex flex-col h-full overflow-hidden">
@@ -56,7 +50,7 @@ export default function GanttChart() {
           Geplante CPU-Ausführung (bis t={currentTime})
         </h3>
         <div className="overflow-x-auto">
-          <div className="relative" style={{ minWidth: `${labelWidth + maxTime * pixelsPerUnit + 40}px` }}>
+          <div style={{ minWidth: `${labelWidth + maxTime * pixelsPerUnit + 40}px` }}>
             {/* Timeline header */}
             <div className="flex" style={{ marginLeft: `${labelWidth}px` }}>
               {Array.from({ length: maxTime + 1 }, (_, i) => (
@@ -81,13 +75,9 @@ export default function GanttChart() {
             <div className="space-y-1">
               {processIds.map((processId) => {
                 // Completed CPU blocks for this process
-                const cpuBlocks = completedCpuBlocks.filter(e => e.processId === processId);
-                // Completed IO blocks for this process
-                const iosBlocks = completedIoBlocks.filter(e => e.processId === processId);
+                const cpuBlocks = ganttEntries.filter((e: GanttEntry) => e.processId === processId);
                 // Currently running block for this process
                 const isRunning = runningProcessId === processId;
-                // Currently in IO block
-                const isInIo = currentIoProcess?.processId === processId;
 
                 return (
                   <div key={`sched-${processId}`} className="flex items-center" style={{ height: `${rowHeight}px` }}>
@@ -133,57 +123,19 @@ export default function GanttChart() {
                         </motion.div>
                       ))}
 
-                      {/* Completed IO blocks */}
-                      {iosBlocks.map((block, idx) => (
-                        <motion.div
-                          key={`io-${processId}-${idx}`}
-                          className="absolute top-1 bottom-1 rounded z-10"
-                          style={{
-                            left: `${block.startTime * pixelsPerUnit}px`,
-                            width: `${(block.endTime - block.startTime) * pixelsPerUnit}px`,
-                            backgroundColor: '#fed7aa',
-                            border: '2px solid #f97316',
-                            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(249,115,22,0.2) 4px, rgba(249,115,22,0.2) 8px)',
-                          }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                        >
-                          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-orange-700 font-medium">IO</span>
-                        </motion.div>
-                      ))}
-
-                      {/* Currently in IO block - only show if IO has actually started (width > 0) */}
-                      {isInIo && currentIoProcess && currentTime >= currentIoProcess.startTime && (
-                        <motion.div
-                          key={`io-running-${processId}`}
-                          className="absolute top-1 bottom-1 rounded z-10 opacity-70"
-                          style={{
-                            left: `${currentIoProcess.startTime * pixelsPerUnit}px`,
-                            width: `${(currentTime - currentIoProcess.startTime) * pixelsPerUnit}px`,
-                            backgroundColor: '#fed7aa',
-                            border: '2px solid #f97316',
-                            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(249,115,22,0.2) 4px, rgba(249,115,22,0.2) 8px)',
-                          }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 0.7 }}
-                        >
-                          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-orange-700 font-medium">IO</span>
-                        </motion.div>
-                      )}
-
                       {/* Currently running block */}
-                      {isRunning && currentRunningBlock && (
+                      {isRunning && (
                         <motion.div
                           key={`cpu-running-${processId}`}
                           className={`absolute top-1 bottom-1 ${getProcessColor(processId)} rounded flex items-center justify-center text-white text-xs font-medium z-10 opacity-70`}
                           style={{
-                            left: `${currentRunningBlock.startTime * pixelsPerUnit}px`,
-                            width: `${(currentTime - currentRunningBlock.startTime) * pixelsPerUnit}px`,
+                            left: `${currentTime * pixelsPerUnit}px`,
+                            width: `${pixelsPerUnit}px`,
                           }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 0.7 }}
                         >
-                          <span className="truncate px-1">{currentRunningBlock.startTime}-{currentTime}</span>
+                          <span className="truncate px-1">RUN</span>
                         </motion.div>
                       )}
                     </div>
@@ -224,66 +176,54 @@ export default function GanttChart() {
 
             {/* Process rows */}
             <div className="space-y-1">
-              {processIds.map((processId) => {
-                const proc = processes.find(p => p.id === processId);
-                if (!proc) return null;
-
-                const blocks: { start: number; end: number; type: string }[] = [];
+              {processDefinitions.map((proc) => {
                 let time = proc.arrivalTime;
+                const blocks: { start: number; end: number; type: string }[] = [];
+
                 for (const burst of proc.bursts) {
-                  blocks.push({ start: time, end: time + burst.duration, type: burst.type });
+                  blocks.push({
+                    start: time,
+                    end: time + burst.duration,
+                    type: burst.type,
+                  });
                   time += burst.duration;
                 }
 
                 return (
-                  <div key={`init-${processId}`} className="flex items-center" style={{ height: `${rowHeight}px` }}>
-                    {/* Process label */}
+                  <div key={`unsched-${proc.id}`} className="flex items-center" style={{ height: `${rowHeight}px` }}>
                     <div
                       className="flex items-center justify-end pr-2 text-sm font-medium text-gray-700 flex-shrink-0"
                       style={{ width: `${labelWidth}px` }}
                     >
-                      <div className={`w-3 h-3 rounded mr-1 ${getProcessColor(processId)}`} />
-                      {processId}
+                      <div className={`w-3 h-3 rounded mr-1 ${getProcessColor(proc.id)}`} />
+                      {proc.id}
                     </div>
 
-                    {/* Timeline area */}
                     <div className="relative flex-1" style={{ height: `${rowHeight - 8}px` }}>
                       {/* Grid lines */}
                       {Array.from({ length: maxTime + 1 }, (_, i) => (
                         <div
-                          key={`igrid-${i}`}
+                          key={`grid-${i}`}
                           className="absolute top-0 bottom-0 w-px bg-gray-200 z-0"
                           style={{ left: `${i * pixelsPerUnit}px` }}
                         />
                       ))}
 
-                      {/* Arrival marker */}
-                      {proc && (
-                        <div
-                          className="absolute top-0 bottom-0 w-0.5 bg-gray-500 z-10"
-                          style={{ left: `${proc.arrivalTime * pixelsPerUnit}px` }}
-                        />
-                      )}
-
-                      {/* Burst blocks */}
                       {blocks.map((block, idx) => (
-                        <motion.div
-                          key={`burst-${processId}-${idx}`}
+                        <div
+                          key={`burst-${proc.id}-${idx}`}
                           className={`absolute top-1 bottom-1 rounded flex items-center justify-center text-white text-xs font-medium z-10 ${
-                            block.type === 'CPU' ? getProcessColor(processId) : 'bg-orange-400'
+                            block.type === 'CPU' ? getProcessColor(proc.id) : 'bg-orange-400'
                           }`}
                           style={{
                             left: `${block.start * pixelsPerUnit}px`,
                             width: `${(block.end - block.start) * pixelsPerUnit}px`,
-                            opacity: 0.8,
                           }}
-                          initial={{ opacity: 0, scaleY: 0 }}
-                          animate={{ opacity: 0.8, scaleY: 1 }}
                         >
-                          <span className="truncate px-1 text-[10px]">
-                            {block.type === 'CPU' ? 'CPU' : 'IO'}:{block.end - block.start}
+                          <span className="truncate px-1">
+                            {block.type === 'IO' ? 'IO' : block.end - block.start}
                           </span>
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -291,26 +231,6 @@ export default function GanttChart() {
               })}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="mt-4 pt-4 border-t flex flex-wrap gap-4">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-500 rounded" />
-          <span className="text-sm text-gray-700">CPU-Burst</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-orange-400 rounded" />
-          <span className="text-sm text-gray-700">I/O-Burst</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-red-500" />
-          <span className="text-sm text-gray-700">Aktuelle Zeit</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-gray-500" />
-          <span className="text-sm text-gray-700">Ankunftszeit</span>
         </div>
       </div>
     </div>

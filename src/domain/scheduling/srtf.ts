@@ -1,49 +1,39 @@
-import { SchedulingAlgorithm } from './schedulingAlgorithm';
-import { Process, SimulationState } from '../types';
+import { SchedulingAlgorithm, SchedulingState } from './schedulingAlgorithm';
 
 export class SRTFAlgorithm implements SchedulingAlgorithm {
   name = "SRTF";
 
-  init(_state: SimulationState): void {
-    // No initialization needed
-  }
-
-  onEvent(_state: SimulationState, _event: { type: string; processId?: string; time?: number }): void {
-    // SRTF relies on decideNextProcess being called at scheduling points
-  }
-
-  decideNextProcess(state: SimulationState): string | null {
+  decideNextProcess(state: SchedulingState): string | null {
     if (state.readyQueue.length === 0) {
       return null;
     }
-    // SRTF: Shortest Remaining Time First - pick process with least remaining CPU time
-    const processes = Array.from(state.readyQueue)
-      .map(id => state.processes.get(id))
-      .filter((p): p is Process => p !== undefined);
 
-    if (processes.length === 0) return null;
+    // Find shortest remaining time in ready queue
+    let shortestProcessId: string | null = null;
+    let shortestTime = Infinity;
 
-    const shortest = processes.reduce((min, p) => {
-      const minRemaining = this.getRemainingCpuTime(min, state);
-      const pRemaining = this.getRemainingCpuTime(p, state);
-      return pRemaining < minRemaining ? p : min;
-    });
-
-    return shortest.id;
-  }
-
-  private getRemainingCpuTime(process: Process, state: SimulationState): number {
-    let total = process.remainingBurstTime;
-    for (let i = process.currentBurstIndex + 1; i < process.bursts.length; i++) {
-      const burst = process.bursts[i];
-      if (burst.type === "CPU") {
-        total += burst.duration;
+    for (const pid of state.readyQueue) {
+      const info = state.processInfos.get(pid);
+      if (info && info.remainingCpuTime < shortestTime) {
+        shortestTime = info.remainingCpuTime;
+        shortestProcessId = pid;
       }
     }
-    return total;
-  }
 
-  onTimeAdvance(_state: SimulationState, _delta: number): void {
-    // SRTF relies on decideNextProcess
+    if (shortestProcessId === null) {
+      return null;
+    }
+
+    // SRTF: If running process has remaining time > shortest ready, preempt
+    if (state.runningProcessId !== null && state.runningProcessId !== shortestProcessId) {
+      const runningInfo = state.processInfos.get(state.runningProcessId);
+      if (runningInfo && runningInfo.remainingCpuTime > shortestTime) {
+        // Preempt current process
+        return shortestProcessId;
+      }
+    }
+
+    // If no running process or current is shortest, run shortest
+    return shortestProcessId;
   }
 }

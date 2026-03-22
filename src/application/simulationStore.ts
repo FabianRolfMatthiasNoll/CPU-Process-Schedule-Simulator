@@ -2,12 +2,10 @@ import { create } from 'zustand';
 import {
   ProcessDefinition,
   SimulationConfig,
-  SimulationEvent,
-  SimulationState,
   SimulationResult,
-  MetricsSummary,
+  StateSnapshot,
   GanttEntry,
-  Process,
+  ProcessSnapshot,
 } from '../domain/types';
 import { SimulationEngine } from '../domain/engine';
 
@@ -21,32 +19,25 @@ interface SimulationStore {
   // Simulation state
   mode: SimulationMode;
   engine: SimulationEngine | null;
-  currentEventIndex: number;
-  events: SimulationEvent[];
-  currentTime: number;
-  isRunning: boolean;
-  speed: number;
 
-  // Computed from engine state
+  // Snapshot-based state
+  snapshots: StateSnapshot[];
+  currentSnapshotIndex: number;
+
+  // Derived state (from current snapshot)
+  currentTime: number;
   readyQueue: string[];
   blockedQueue: string[];
   runningProcessId: string | null;
-  runningSince: number | null;
-  finishedProcesses: string[];
   ganttEntries: GanttEntry[];
-  ioBlocks: { processId: string; startTime: number; endTime: number }[];
-  currentIoProcess: { processId: string; startTime: number } | null;
-  rescheduleTimes: number[];
-  metrics: MetricsSummary | null;
+  metrics: SimulationResult['metrics'] | null;
 
-  // Practice mode
-  userDecisions: string[];
-  expectedDecisions: string[];
-  practiceError: string | null;
-  practiceCorrectUpTo: number;
+  // UI state
+  isRunning: boolean;
+  speed: number;
 
-  // Process state visualization
-  processStates: Map<string, Process>;
+  // Process definitions (for display)
+  processDefinitions: ProcessDefinition[];
 
   // Actions
   setProcesses: (processes: ProcessDefinition[]) => void;
@@ -55,59 +46,47 @@ interface SimulationStore {
   setSpeed: (speed: number) => void;
 
   initializeSimulation: () => void;
-  step: () => SimulationEvent[];
+  step: () => void;
   run: () => void;
   pause: () => void;
   reset: () => void;
-  goToTime: (time: number) => void;
-  submitUserDecision: (processId: string) => boolean;
-  showReferenceSolution: () => void;
-  getReadyQueue: () => string[];
-  getBlockedQueue: () => string[];
-  getRunningProcess: () => string | null;
-  getFinishedProcesses: () => string[];
 }
 
 let autoRunInterval: ReturnType<typeof setInterval> | null = null;
 
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
-  // Initial state
+  // Configuration
   processes: [],
-  config: { algorithm: "FCFS", quantum: 4 },
+  config: { algorithm: "RR", quantum: 3 },
   mode: "step",
+
+  // Simulation state
   engine: null,
-  currentEventIndex: -1,
-  events: [] as SimulationEvent[],
+
+  // Snapshot-based state
+  snapshots: [],
+  currentSnapshotIndex: -1,
+
+  // Derived state
   currentTime: 0,
-  isRunning: false,
-  speed: 1,
   readyQueue: [],
-  blockedQueue: [] as string[],
+  blockedQueue: [],
   runningProcessId: null,
-  runningSince: null as number | null,
-  finishedProcesses: [],
-  ganttEntries: [] as GanttEntry[],
-  ioBlocks: [] as { processId: string; startTime: number; endTime: number }[],
-  currentIoProcess: null as { processId: string; startTime: number } | null,
-  rescheduleTimes: [] as number[],
-  metrics: null as MetricsSummary | null,
-  userDecisions: [],
-  expectedDecisions: [],
-  practiceError: null,
-  practiceCorrectUpTo: -1,
-  processStates: new Map(),
+  ganttEntries: [],
+  metrics: null,
+
+  // UI state
+  isRunning: false,
+  speed: 500,
+
+  // Process definitions
+  processDefinitions: [],
 
   setProcesses: (processes) => set({ processes }),
 
   setConfig: (config) => set({ config }),
 
-  setMode: (mode) => {
-    set({ mode });
-    if (mode !== "auto") {
-      const { pause } = get();
-      pause();
-    }
-  },
+  setMode: (mode) => set({ mode }),
 
   setSpeed: (speed) => set({ speed }),
 
@@ -115,101 +94,79 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const { processes, config } = get();
     if (processes.length === 0) return;
 
+    // Create engine and run to completion to generate all snapshots
     const engine = new SimulationEngine(processes, config);
 
-    // Run to completion for reference (to get expected decisions and metrics)
-    const result = engine.runToCompletion();
+    console.log('[Store] Running simulation to completion to generate snapshots...');
 
-    // Extract expected scheduling decisions from events (practice mode)
-    const expectedDecisions: string[] = [];
-    for (const event of result.events) {
-      if (event.type === "PROCESS_DISPATCHED") {
-        expectedDecisions.push(event.processId);
-      }
+    const snapshots: StateSnapshot[] = [];
+    while (!engine.isFinished()) {
+      const snapshot = engine.tick();
+      snapshots.push(snapshot);
     }
 
-    // Reset engine to initial state
-    const engine2 = new SimulationEngine(processes, config);
+    // Add final snapshot
+    snapshots.push(engine.getCurrentSnapshot());
+
+    console.log(`[Store] Generated ${snapshots.length} snapshots`);
+
+    // Get final metrics without re-running (engine is already at finished state)
+    const finalSnapshot = engine.getCurrentSnapshot();
+    const processList = Array.from(finalSnapshot.processes.values());
+
+    const metrics: SimulationResult['metrics'] = {
+      processes: processList.map(p => ({
+        id: p.id,
+        waitingTime: p.waitingTime,
+        turnaroundTime: p.turnaroundTime,
+        responseTime: p.responseTime ?? 0,
+      })),
+      averages: {
+        waitingTime: 0,
+        turnaroundTime: 0,
+        responseTime: 0,
+      },
+    };
+
+    const count = metrics.processes.length;
+    if (count > 0) {
+      metrics.averages.waitingTime = metrics.processes.reduce((sum, p) => sum + p.waitingTime, 0) / count;
+      metrics.averages.turnaroundTime = metrics.processes.reduce((sum, p) => sum + p.turnaroundTime, 0) / count;
+      metrics.averages.responseTime = metrics.processes.reduce((sum, p) => sum + p.responseTime, 0) / count;
+    }
 
     set({
-      engine: engine2,
-      events: [],
-      currentEventIndex: -1,
+      engine,
+      snapshots,
+      currentSnapshotIndex: -1,
       currentTime: 0,
-      expectedDecisions,
-      metrics: result.metrics,
-      ganttEntries: [],
-      userDecisions: [],
-      practiceError: null,
-      practiceCorrectUpTo: -1,
       readyQueue: [],
       blockedQueue: [],
       runningProcessId: null,
-      finishedProcesses: [],
-      processStates: new Map(),
+      ganttEntries: [],
+      metrics,
+      processDefinitions: processes,
+      isRunning: false,
     });
-
-    console.log('[Store] Initialized simulation with', result.events.length, 'reference events');
   },
 
   step: () => {
-    const { engine, currentEventIndex, events, rescheduleTimes } = get();
-    if (!engine) return [];
+    const { snapshots, currentSnapshotIndex, engine } = get();
 
-    if (engine.isFinished()) {
-      console.log('[STEP] simulation finished');
-      return [];
-    }
+    if (!engine) return;
+    if (currentSnapshotIndex >= snapshots.length - 1) return;
 
-    const newEvents = engine.tick();
-    const state = engine.getState();
+    const nextIndex = currentSnapshotIndex + 1;
+    const snapshot = snapshots[nextIndex];
 
-    console.log('[STEP] t=', state.time, 'events:', newEvents.map(e => e.type).join(', '));
-
-    // Track IO blocks from events
-    // IO starts at the NEXT tick after IO_BURST_STARTED (event.time + 1)
-    // because the current tick is consumed by the CPU burst completion
-    const currentIo = get().currentIoProcess;
-    const ioBlocks = [...get().ioBlocks];
-    let newCurrentIoProcess = currentIo;
-
-    // Track reschedule times from PREEMPTED events
-    const newRescheduleTimes = [...rescheduleTimes];
-
-    for (const event of newEvents) {
-      if (event.type === 'IO_BURST_STARTED') {
-        // IO starts at NEXT tick after CPU burst completes
-        newCurrentIoProcess = { processId: (event as any).processId, startTime: (event as any).time + 1 };
-      } else if (event.type === 'IO_BURST_COMPLETED' && currentIo) {
-        // IO ends at NEXT tick (the current tick is consumed by IO)
-        ioBlocks.push({
-          processId: currentIo.processId,
-          startTime: currentIo.startTime,
-          endTime: (event as any).time + 1,
-        });
-        newCurrentIoProcess = null;
-      }
-    }
-
-    // Update state from engine
     set({
-      currentTime: state.time,
-      currentEventIndex: currentEventIndex + newEvents.length,
-      events: [...events, ...newEvents],
-      readyQueue: [...state.readyQueue],
-      blockedQueue: [...state.blockedQueue],
-      runningProcessId: state.runningProcessId,
-      runningSince: state.currentGanttStart,
-      finishedProcesses: Array.from(state.processes.values())
-        .filter(p => p.state === "FINISHED")
-        .map(p => p.id),
-      ganttEntries: [...state.ganttEntries],
-      ioBlocks,
-      currentIoProcess: newCurrentIoProcess,
-      rescheduleTimes: newRescheduleTimes,
+      currentSnapshotIndex: nextIndex,
+      currentTime: snapshot.time,
+      readyQueue: snapshot.readyQueue,
+      blockedQueue: snapshot.blockedQueue,
+      runningProcessId: snapshot.runningProcessId,
+      ganttEntries: snapshot.ganttEntries,
     });
-
-    return newEvents;
   },
 
   run: () => {
@@ -219,13 +176,21 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     set({ isRunning: true });
 
     autoRunInterval = setInterval(() => {
-      const { engine } = get();
-      if (!engine || engine.isFinished()) {
+      const { currentSnapshotIndex, snapshots, engine } = get();
+
+      if (!engine) {
         get().pause();
         return;
       }
+
+      // Check if we can step
+      if (currentSnapshotIndex >= snapshots.length - 1) {
+        get().pause();
+        return;
+      }
+
       get().step();
-    }, 1000 / speed);
+    }, speed);
   },
 
   pause: () => {
@@ -238,78 +203,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   reset: () => {
     get().pause();
-    const { processes, config } = get();
-    if (processes.length === 0) return;
-
-    const engine = new SimulationEngine(processes, config);
-
     set({
-      engine,
+      snapshots: [],
+      currentSnapshotIndex: -1,
       currentTime: 0,
       readyQueue: [],
       blockedQueue: [],
       runningProcessId: null,
-      finishedProcesses: [],
       ganttEntries: [],
-      ioBlocks: [],
-      currentIoProcess: null,
-      rescheduleTimes: [],
-      userDecisions: [],
-      practiceError: null,
-      practiceCorrectUpTo: -1,
+      metrics: null,
+      engine: null,
     });
   },
-
-  goToTime: (time) => {
-    const { engine, currentTime } = get();
-    if (!engine) return;
-
-    // Step until we reach the desired time
-    while (engine.getCurrentTime() < time && !engine.isFinished()) {
-      engine.tick();
-    }
-
-    const state = engine.getState();
-    set({
-      currentTime: state.time,
-      readyQueue: [...state.readyQueue],
-      blockedQueue: [...state.blockedQueue],
-      runningProcessId: state.runningProcessId,
-      finishedProcesses: Array.from(state.processes.values())
-        .filter(p => p.state === "FINISHED")
-        .map(p => p.id),
-    });
-  },
-
-  submitUserDecision: (processId) => {
-    const { expectedDecisions, userDecisions, practiceCorrectUpTo } = get();
-
-    userDecisions.push(processId);
-    const decisionIndex = userDecisions.length - 1;
-
-    if (expectedDecisions[decisionIndex] === processId) {
-      set({ userDecisions, practiceCorrectUpTo: decisionIndex, practiceError: null });
-      return true;
-    } else {
-      set({
-        userDecisions,
-        practiceCorrectUpTo: decisionIndex - 1,
-        practiceError: `Fehler bei Schritt ${decisionIndex + 1}: Prozess "${processId}" war nicht die richtige Wahl.`,
-      });
-      return false;
-    }
-  },
-
-  showReferenceSolution: () => {
-    const { expectedDecisions } = get();
-    set({ userDecisions: [...expectedDecisions] });
-  },
-
-  getReadyQueue: () => get().readyQueue,
-
-  getBlockedQueue: () => get().blockedQueue,
-
-  getRunningProcess: () => get().runningProcessId,
-
-  getFinishedProcesses: () => get().finishedProcesses,
 }));

@@ -1,9 +1,17 @@
-import { Process, SimulationState } from '../types';
+export interface ProcessInfo {
+  id: string;
+  remainingCpuTime: number;  // Total remaining CPU time (current + future bursts)
+}
+
+export interface SchedulingState {
+  time: number;
+  readyQueue: string[];
+  blockedQueue: string[];
+  runningProcessId: string | null;
+  processInfos: Map<string, ProcessInfo>;  // All processes for SRTF comparison
+}
 
 export interface SchedulingAlgorithm {
   name: string;
-  init(state: SimulationState): void;
-  onEvent(state: SimulationState, event: { type: string; processId?: string; time?: number }): void;
-  decideNextProcess(state: SimulationState): string | null;
-  onTimeAdvance(state: SimulationState, delta: number): void;
+  decideNextProcess(state: SchedulingState): string | null;
 }

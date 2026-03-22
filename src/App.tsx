@@ -15,11 +15,9 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const {
     mode,
-    currentEventIndex,
-    events,
+    currentTime,
   } = useSimulationStore();
 
-  const currentEvent = currentEventIndex >= 0 ? events[currentEventIndex] : null;
   const { config, setConfig } = useSimulationStore();
 
   return (
@@ -100,7 +98,7 @@ function App() {
                 <div>
                   <span className="text-sm text-gray-500">Aktuelle Zeit:</span>
                   <span className="ml-2 text-xl font-bold text-gray-900">
-                    {currentEvent?.time ?? 0}
+                    {currentTime}
                   </span>
                 </div>
                 <div>
@@ -109,12 +107,6 @@ function App() {
                     {mode === 'auto' && 'Auto'}
                     {mode === 'step' && 'Schritt'}
                     {mode === 'practice' && 'Übung'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-500">Event:</span>
-                  <span className="ml-2 text-sm font-mono text-gray-700">
-                    {currentEvent?.type ?? '—'}
                   </span>
                 </div>
               </div>

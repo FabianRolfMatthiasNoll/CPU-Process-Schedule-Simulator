@@ -1,10 +1,10 @@
 import { useSimulationStore } from '../application';
 
 export default function MetricsDisplay() {
-  const { metrics, currentEventIndex, events, processes } = useSimulationStore();
+  const { metrics, engine } = useSimulationStore();
 
   // Only show final metrics when simulation is complete
-  const isComplete = currentEventIndex >= events.length - 1 && events.length > 0;
+  const isComplete = engine?.isFinished() ?? false;
 
   if (!metrics || !isComplete) {
     return (

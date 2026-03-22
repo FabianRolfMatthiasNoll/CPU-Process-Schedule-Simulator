@@ -2,8 +2,7 @@ import { useSimulationStore } from '../application';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function BlockedQueue() {
-  const { getBlockedQueue } = useSimulationStore();
-  const blockedQueue = getBlockedQueue();
+  const { blockedQueue } = useSimulationStore();
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
@@ -15,7 +14,7 @@ export default function BlockedQueue() {
               Leer
             </div>
           ) : (
-            blockedQueue.map((processId, index) => (
+            blockedQueue.map((processId: string, index: number) => (
               <motion.div
                 key={processId}
                 className="bg-orange-100 border border-orange-300 rounded px-3 py-2 mb-1 text-sm font-medium text-orange-800"

@@ -13,16 +13,42 @@ export type ProcessDefinition = {
 
 export type ProcessState = "NEW" | "READY" | "RUNNING" | "BLOCKED" | "FINISHED";
 
+// Runtime process state (mutable during simulation)
 export type Process = {
   id: string;
   arrivalTime: number;
   bursts: Burst[];
   currentBurstIndex: number;
-  remainingBurstTime: number;  // For current CPU burst
-  ioRemainingTime: number;    // For current IO burst (when blocked)
+  remainingBurstTime: number;  // Remaining time in current CPU burst
+  ioRemainingTime: number;    // Remaining time in current IO burst
   state: ProcessState;
   totalCpuTime: number;
   totalIoTime: number;
+  waitingTime: number;
+  turnaroundTime: number;
+  responseTime: number | null;
+  firstCpuTime: number | null;
+  quantumUsed: number;         // Ticks used in current RR quantum slice
+};
+
+// Complete snapshot of simulation state at a point in time (immutable)
+export type StateSnapshot = {
+  time: number;
+  processes: Map<string, ProcessSnapshot>;
+  readyQueue: string[];
+  blockedQueue: string[];
+  runningProcessId: string | null;
+  ganttEntries: GanttEntry[];
+  currentGanttStart: number | null;  // Start time of current CPU execution
+};
+
+// Immutable snapshot of a single process (for storing in StateSnapshot)
+export type ProcessSnapshot = {
+  id: string;
+  state: ProcessState;
+  currentBurstIndex: number;
+  remainingBurstTime: number;
+  ioRemainingTime: number;
   waitingTime: number;
   turnaroundTime: number;
   responseTime: number | null;
@@ -68,17 +94,4 @@ export type GanttEntry = {
   processId: string;
   startTime: number;
   endTime: number;
-};
-
-export type SimulationState = {
-  time: number;
-  processes: Map<string, Process>;
-  readyQueue: string[];
-  blockedQueue: string[];
-  runningProcessId: string | null;
-  cpuRemainingTime: number;
-  events: SimulationEvent[];
-  ganttEntries: GanttEntry[];
-  currentGanttStart: number | null;
-  finished: boolean;
 };

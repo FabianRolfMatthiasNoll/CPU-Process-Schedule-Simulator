@@ -2,8 +2,7 @@ import { useSimulationStore } from '../application';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function RunningProcess() {
-  const { getRunningProcess } = useSimulationStore();
-  const runningProcessId = getRunningProcess();
+  const { runningProcessId } = useSimulationStore();
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
