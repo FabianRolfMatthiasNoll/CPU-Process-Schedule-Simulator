@@ -12,14 +12,16 @@ export default function ControlPanel() {
     setSpeed,
     speed,
     currentTime,
-    engine,
     initializeSimulation,
     processes,
+    snapshots,
+    currentSnapshotIndex,
   } = useSimulationStore();
 
   const canStart = processes.length > 0;
-  const isFinished = engine?.isFinished() || false;
   const atStart = currentTime <= 0;
+  // Stepping is possible when we have snapshots and haven't reached the end
+  const canStep = snapshots.length > 0 && currentSnapshotIndex < snapshots.length - 1;
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
@@ -79,7 +81,7 @@ export default function ControlPanel() {
         </button>
         <button
           onClick={() => step()}
-          disabled={isFinished || mode === 'auto'}
+          disabled={!canStep || mode === 'auto'}
           className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           title="Nächster Schritt"
         >

@@ -28,6 +28,8 @@ export class SimulationEngine {
   // Gantt chart tracking
   private ganttEntries: GanttEntry[] = [];
   private currentGanttStart: number | null = null;
+  private runningDispatchEnd: number | null = null; // When current dispatch will end
+  private ioGanttStart: Map<string, number> = new Map(); // processId -> startTime
 
   // Event log
   private events: SimulationEvent[] = [];
@@ -243,6 +245,15 @@ export class SimulationEngine {
     this.runningProcessId = processId;
     this.currentGanttStart = this.time;
 
+    // Calculate when this dispatch will end
+    if (this.quantum !== null) {
+      // RR: dispatch ends at quantum expiration or burst completion
+      this.runningDispatchEnd = this.time + Math.min(this.quantum, process.remainingBurstTime);
+    } else {
+      // FCFS/SRTF: dispatch ends when burst completes
+      this.runningDispatchEnd = this.time + process.remainingBurstTime;
+    }
+
     // Set response time on first CPU
     if (process.firstCpuTime === null) {
       process.firstCpuTime = this.time;
@@ -268,6 +279,7 @@ export class SimulationEngine {
     this.readyQueue.push(processId);
     this.runningProcessId = null;
     this.currentGanttStart = null;
+    this.runningDispatchEnd = null;
   }
 
   private completeCpuBurst(): void {
@@ -285,6 +297,7 @@ export class SimulationEngine {
     process.currentBurstIndex++;
     this.runningProcessId = null;
     this.currentGanttStart = null;
+    this.runningDispatchEnd = null;
 
     if (process.currentBurstIndex < process.bursts.length) {
       const nextBurst = process.bursts[process.currentBurstIndex];
@@ -294,6 +307,8 @@ export class SimulationEngine {
         process.state = "BLOCKED";
         process.ioRemainingTime = nextBurst.duration;
         this.blockedQueue.push(processId);
+        // Track IO in Gantt - start at current time, end will be set on completion
+        this.ioGanttStart.set(processId, this.time);
         this.addEvent({ type: "IO_BURST_STARTED", processId, time: this.time });
       } else {
         // Next CPU burst
@@ -312,6 +327,18 @@ export class SimulationEngine {
   private completeIO(processId: string): void {
     const process = this.processes.get(processId);
     if (!process) return;
+
+    // Close IO Gantt entry
+    const ioStart = this.ioGanttStart.get(processId);
+    if (ioStart !== undefined) {
+      this.ganttEntries.push({
+        processId,
+        startTime: ioStart,
+        endTime: this.time + 1, // IO completes at end of this tick
+        type: "IO",
+      });
+      this.ioGanttStart.delete(processId);
+    }
 
     // Remove from blocked queue
     const idx = this.blockedQueue.indexOf(processId);
@@ -370,6 +397,7 @@ export class SimulationEngine {
         processId: this.runningProcessId,
         startTime: this.currentGanttStart,
         endTime: this.time + 1,
+        type: "CPU",
       });
       this.currentGanttStart = null;
     }
@@ -411,6 +439,8 @@ export class SimulationEngine {
       runningProcessId: this.runningProcessId,
       ganttEntries: [...this.ganttEntries],
       currentGanttStart: this.currentGanttStart,
+      runningDispatchEnd: this.runningDispatchEnd,
+      ioSnapshotStarts: new Map(this.ioGanttStart),
     };
   }
 
@@ -444,7 +474,8 @@ export class SimulationEngine {
       this.ganttEntries.push({
         processId: this.runningProcessId,
         startTime: this.currentGanttStart,
-        endTime: this.time,
+        endTime: this.time + 1,
+        type: "CPU",
       });
     }
 

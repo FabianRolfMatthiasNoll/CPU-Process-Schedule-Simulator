@@ -40,6 +40,8 @@ export type StateSnapshot = {
   runningProcessId: string | null;
   ganttEntries: GanttEntry[];
   currentGanttStart: number | null;  // Start time of current CPU execution
+  runningDispatchEnd: number | null; // End time of current dispatch (when quantum/burst expires)
+  ioSnapshotStarts: Map<string, number>; // processId -> start time of current IO burst
 };
 
 // Immutable snapshot of a single process (for storing in StateSnapshot)
@@ -94,4 +96,5 @@ export type GanttEntry = {
   processId: string;
   startTime: number;
   endTime: number;
+  type: "CPU" | "IO";
 };

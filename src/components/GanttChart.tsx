@@ -13,6 +13,8 @@ const COLORS = [
   'bg-teal-500',
 ];
 
+const IO_COLOR = 'bg-orange-400';
+
 function getProcessColor(processId: string): string {
   const hash = processId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return COLORS[hash % COLORS.length];
@@ -24,6 +26,8 @@ export default function GanttChart() {
     currentTime,
     runningProcessId,
     processDefinitions,
+    readyQueue,
+    blockedQueue,
   } = useSimulationStore();
 
   // Get process IDs from definitions
@@ -40,14 +44,22 @@ export default function GanttChart() {
   const rowHeight = 40;
   const labelWidth = 50;
 
-  console.log('[GanttChart] currentTime=', currentTime, 'ganttEntries=', ganttEntries, 'running=', runningProcessId);
+  // Get current snapshot to find IO start times
+  const { snapshots, currentSnapshotIndex } = useSimulationStore.getState();
+  const currentSnapshot = snapshots[currentSnapshotIndex] || null;
+  let currentGanttStart: number | null = null;
+  let ioSnapshotStarts = new Map<string, number>(); // processId -> IO start time
+  if (currentSnapshot) {
+    currentGanttStart = currentSnapshot.currentGanttStart;
+    ioSnapshotStarts = currentSnapshot.ioSnapshotStarts;
+  }
 
   return (
     <div className="bg-white rounded-lg shadow p-4 flex flex-col h-full overflow-hidden">
       {/* Scheduled Execution View */}
       <div className="mb-6">
         <h3 className="font-semibold text-gray-900 mb-2">
-          Geplante CPU-Ausführung (bis t={currentTime})
+          Geplante Ausführung (bis t={currentTime})
         </h3>
         <div className="overflow-x-auto">
           <div style={{ minWidth: `${labelWidth + maxTime * pixelsPerUnit + 40}px` }}>
@@ -74,10 +86,10 @@ export default function GanttChart() {
             {/* Process rows */}
             <div className="space-y-1">
               {processIds.map((processId) => {
-                // Completed CPU blocks for this process
-                const cpuBlocks = ganttEntries.filter((e: GanttEntry) => e.processId === processId);
-                // Currently running block for this process
+                // Completed blocks for this process (already in ganttEntries)
+                const completedBlocks = ganttEntries.filter((e: GanttEntry) => e.processId === processId);
                 const isRunning = runningProcessId === processId;
+                const isBlocked = blockedQueue.includes(processId);
 
                 return (
                   <div key={`sched-${processId}`} className="flex items-center" style={{ height: `${rowHeight}px` }}>
@@ -107,11 +119,13 @@ export default function GanttChart() {
                         style={{ left: `${currentTime * pixelsPerUnit}px` }}
                       />
 
-                      {/* Completed CPU blocks */}
-                      {cpuBlocks.map((block: GanttEntry, idx: number) => (
+                      {/* Completed blocks (CPU and IO) */}
+                      {completedBlocks.map((block: GanttEntry, idx: number) => (
                         <motion.div
-                          key={`cpu-${processId}-${idx}`}
-                          className={`absolute top-1 bottom-1 ${getProcessColor(processId)} rounded flex items-center justify-center text-white text-xs font-medium z-10`}
+                          key={`block-${processId}-${idx}`}
+                          className={`absolute top-1 bottom-1 rounded flex items-center justify-center text-white text-xs font-medium z-10 ${
+                            block.type === 'IO' ? IO_COLOR : getProcessColor(processId)
+                          }`}
                           style={{
                             left: `${block.startTime * pixelsPerUnit}px`,
                             width: `${(block.endTime - block.startTime) * pixelsPerUnit}px`,
@@ -119,24 +133,55 @@ export default function GanttChart() {
                           initial={{ opacity: 0, scaleY: 0 }}
                           animate={{ opacity: 1, scaleY: 1 }}
                         >
-                          <span className="truncate px-1">{block.startTime}-{block.endTime}</span>
+                          <span className="truncate px-1">
+                            {block.type === 'IO' ? 'IO' : `${block.startTime}-${block.endTime}`}
+                          </span>
                         </motion.div>
                       ))}
 
-                      {/* Currently running block */}
-                      {isRunning && (
+                      {/* Currently running block - show executed portion from currentGanttStart to currentTime */}
+                      {isRunning && currentGanttStart !== null && (
                         <motion.div
-                          key={`cpu-running-${processId}`}
-                          className={`absolute top-1 bottom-1 ${getProcessColor(processId)} rounded flex items-center justify-center text-white text-xs font-medium z-10 opacity-70`}
+                          key={`running-${processId}`}
+                          className={`absolute top-1 bottom-1 ${getProcessColor(processId)} rounded flex items-center justify-center text-white text-xs font-medium z-20 border-2 border-yellow-300`}
                           style={{
-                            left: `${currentTime * pixelsPerUnit}px`,
-                            width: `${pixelsPerUnit}px`,
+                            left: `${currentGanttStart * pixelsPerUnit}px`,
+                            width: `${(currentTime - currentGanttStart) * pixelsPerUnit}px`,
+                          }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                        >
+                          <span className="truncate px-1 font-bold">RUN</span>
+                        </motion.div>
+                      )}
+
+                      {/* Blocked/IO block - show executed portion from ioSnapshotStart to currentTime */}
+                      {isBlocked && ioSnapshotStarts.has(processId) && (
+                        <motion.div
+                          key={`blocked-${processId}`}
+                          className={`absolute top-1 bottom-1 ${IO_COLOR} rounded flex items-center justify-center text-white text-xs font-medium z-10 opacity-70`}
+                          style={{
+                            left: `${ioSnapshotStarts.get(processId)! * pixelsPerUnit}px`,
+                            width: `${(currentTime - ioSnapshotStarts.get(processId)!) * pixelsPerUnit}px`,
                           }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 0.7 }}
                         >
-                          <span className="truncate px-1">RUN</span>
+                          <span className="truncate px-1">IO</span>
                         </motion.div>
+                      )}
+
+                      {/* Ready indicator */}
+                      {readyQueue.includes(processId) && !isRunning && (
+                        <div
+                          className="absolute top-1 bottom-1 bg-gray-300 rounded flex items-center justify-center text-gray-600 text-xs z-5"
+                          style={{
+                            left: `${currentTime * pixelsPerUnit}px`,
+                            width: `${pixelsPerUnit}px`,
+                          }}
+                        >
+                          <span className="truncate px-1">RDY</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -213,7 +258,7 @@ export default function GanttChart() {
                         <div
                           key={`burst-${proc.id}-${idx}`}
                           className={`absolute top-1 bottom-1 rounded flex items-center justify-center text-white text-xs font-medium z-10 ${
-                            block.type === 'CPU' ? getProcessColor(proc.id) : 'bg-orange-400'
+                            block.type === 'CPU' ? getProcessColor(proc.id) : IO_COLOR
                           }`}
                           style={{
                             left: `${block.start * pixelsPerUnit}px`,
