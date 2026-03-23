@@ -13,21 +13,36 @@ const COLORS = [
   'bg-teal-500',
 ];
 
-const IO_COLOR = 'bg-orange-400';
-
 function getProcessColor(processId: string): string {
   const hash = processId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return COLORS[hash % COLORS.length];
+}
+
+// Merge consecutive entries of same type with no gap
+function mergeEntries(entries: GanttEntry[]): GanttEntry[] {
+  if (entries.length <= 1) return entries;
+
+  const sorted = [...entries].sort((a, b) => a.startTime - b.startTime);
+  const merged: GanttEntry[] = [];
+
+  for (const entry of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && last.processId === entry.processId && last.type === entry.type && last.endTime === entry.startTime) {
+      // Merge with previous
+      last.endTime = entry.endTime;
+    } else {
+      merged.push({ ...entry });
+    }
+  }
+
+  return merged;
 }
 
 export default function GanttChart() {
   const {
     ganttEntries,
     currentTime,
-    runningProcessId,
     processDefinitions,
-    readyQueue,
-    blockedQueue,
   } = useSimulationStore();
 
   // Get process IDs from definitions
@@ -43,22 +58,6 @@ export default function GanttChart() {
   const pixelsPerUnit = 60;
   const rowHeight = 40;
   const labelWidth = 50;
-
-  // Get current snapshot to find IO start times and burst durations
-  const { snapshots, currentSnapshotIndex } = useSimulationStore.getState();
-  const currentSnapshot = snapshots[currentSnapshotIndex] || null;
-  let currentGanttStart: number | null = null;
-  let ioSnapshotStarts = new Map<string, number>(); // processId -> IO start time
-  const ioBurstDurations = new Map<string, number>(); // processId -> original IO burst duration
-  if (currentSnapshot) {
-    currentGanttStart = currentSnapshot.currentGanttStart;
-    ioSnapshotStarts = currentSnapshot.ioSnapshotStarts;
-    for (const [pid, procSnap] of currentSnapshot.processes) {
-      if (procSnap.state === 'BLOCKED' && procSnap.ioBurstDuration > 0) {
-        ioBurstDurations.set(pid, procSnap.ioBurstDuration);
-      }
-    }
-  }
 
   return (
     <div className="bg-white rounded-lg shadow p-4 flex flex-col h-full overflow-hidden">
@@ -92,10 +91,8 @@ export default function GanttChart() {
             {/* Process rows */}
             <div className="space-y-1">
               {processIds.map((processId) => {
-                // Completed blocks for this process (already in ganttEntries)
-                const completedBlocks = ganttEntries.filter((e: GanttEntry) => e.processId === processId);
-                const isRunning = runningProcessId === processId;
-                const isBlocked = blockedQueue.includes(processId);
+                // Get blocks for this process and merge consecutive same-type entries
+                const blocks = mergeEntries(ganttEntries.filter((e: GanttEntry) => e.processId === processId));
 
                 return (
                   <div key={`sched-${processId}`} className="flex items-center" style={{ height: `${rowHeight}px` }}>
@@ -126,11 +123,13 @@ export default function GanttChart() {
                       />
 
                       {/* Completed blocks (CPU and IO) */}
-                      {completedBlocks.map((block: GanttEntry, idx: number) => (
+                      {blocks.map((block: GanttEntry, idx: number) => (
                         <motion.div
                           key={`block-${processId}-${idx}`}
                           className={`absolute top-1 bottom-1 rounded flex items-center justify-center text-white text-xs font-medium z-10 ${
-                            block.type === 'IO' ? IO_COLOR : getProcessColor(processId)
+                            block.type === 'IO'
+                              ? 'bg-orange-400'
+                              : getProcessColor(processId)
                           }`}
                           style={{
                             left: `${block.startTime * pixelsPerUnit}px`,
@@ -144,51 +143,6 @@ export default function GanttChart() {
                           </span>
                         </motion.div>
                       ))}
-
-                      {/* Currently running block - show executed portion from currentGanttStart to currentTime */}
-                      {isRunning && currentGanttStart !== null && (
-                        <motion.div
-                          key={`running-${processId}`}
-                          className={`absolute top-1 bottom-1 ${getProcessColor(processId)} rounded flex items-center justify-center text-white text-xs font-medium z-20 border-2 border-yellow-300`}
-                          style={{
-                            left: `${currentGanttStart * pixelsPerUnit}px`,
-                            width: `${(currentTime - currentGanttStart) * pixelsPerUnit}px`,
-                          }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                        >
-                          <span className="truncate px-1 font-bold">RUN</span>
-                        </motion.div>
-                      )}
-
-                      {/* Blocked/IO block - width based on ioBurstDuration, positioned at ioSnapshotStart */}
-                      {isBlocked && ioSnapshotStarts.has(processId) && ioBurstDurations.has(processId) && (
-                        <motion.div
-                          key={`blocked-${processId}`}
-                          className={`absolute top-1 bottom-1 ${IO_COLOR} rounded flex items-center justify-center text-white text-xs font-medium z-10 opacity-70`}
-                          style={{
-                            left: `${ioSnapshotStarts.get(processId)! * pixelsPerUnit}px`,
-                            width: `${ioBurstDurations.get(processId)! * pixelsPerUnit}px`,
-                          }}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 0.7 }}
-                        >
-                          <span className="truncate px-1">IO</span>
-                        </motion.div>
-                      )}
-
-                      {/* Ready indicator */}
-                      {readyQueue.includes(processId) && !isRunning && (
-                        <div
-                          className="absolute top-1 bottom-1 bg-gray-300 rounded flex items-center justify-center text-gray-600 text-xs z-5"
-                          style={{
-                            left: `${currentTime * pixelsPerUnit}px`,
-                            width: `${pixelsPerUnit}px`,
-                          }}
-                        >
-                          <span className="truncate px-1">RDY</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -264,7 +218,7 @@ export default function GanttChart() {
                         <div
                           key={`burst-${proc.id}-${idx}`}
                           className={`absolute top-1 bottom-1 rounded flex items-center justify-center text-white text-xs font-medium z-10 ${
-                            block.type === 'CPU' ? getProcessColor(proc.id) : IO_COLOR
+                            block.type === 'CPU' ? getProcessColor(proc.id) : 'bg-orange-400'
                           }`}
                           style={{
                             left: `${block.start * pixelsPerUnit}px`,

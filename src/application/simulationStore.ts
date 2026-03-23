@@ -97,8 +97,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     // Create engine and run to completion to generate all snapshots
     const engine = new SimulationEngine(processes, config);
 
-    console.log('[Store] Running simulation to completion to generate snapshots...');
-
     const snapshots: StateSnapshot[] = [];
     while (!engine.isFinished()) {
       const snapshot = engine.tick();
@@ -107,8 +105,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     // Add final snapshot
     snapshots.push(engine.getCurrentSnapshot());
-
-    console.log(`[Store] Generated ${snapshots.length} snapshots`);
 
     // Get final metrics without re-running (engine is already at finished state)
     const finalSnapshot = engine.getCurrentSnapshot();

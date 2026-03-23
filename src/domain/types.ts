@@ -19,9 +19,8 @@ export type Process = {
   arrivalTime: number;
   bursts: Burst[];
   currentBurstIndex: number;
-  remainingBurstTime: number;  // Remaining time in current CPU burst
-  ioRemainingTime: number;    // Remaining time in current IO burst
-  ioBurstDuration: number;   // Original IO burst duration (for rendering width)
+  remainingBurstTime: number;  // Remaining time in current burst (CPU or IO)
+  burstStartTime: number;     // When current burst started (for rendering)
   state: ProcessState;
   totalCpuTime: number;
   totalIoTime: number;
@@ -40,9 +39,6 @@ export type StateSnapshot = {
   blockedQueue: string[];
   runningProcessId: string | null;
   ganttEntries: GanttEntry[];
-  currentGanttStart: number | null;  // Start time of current CPU execution
-  runningDispatchEnd: number | null; // End time of current dispatch (when quantum/burst expires)
-  ioSnapshotStarts: Map<string, number>; // processId -> start time of current IO burst
 };
 
 // Immutable snapshot of a single process (for storing in StateSnapshot)
@@ -51,8 +47,7 @@ export type ProcessSnapshot = {
   state: ProcessState;
   currentBurstIndex: number;
   remainingBurstTime: number;
-  ioRemainingTime: number;
-  ioBurstDuration: number; // Original IO burst duration (for rendering width)
+  burstStartTime: number;  // When current burst started
   waitingTime: number;
   turnaroundTime: number;
   responseTime: number | null;

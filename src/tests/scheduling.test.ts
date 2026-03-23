@@ -15,11 +15,23 @@ describe('FCFS Algorithm', () => {
 
     // FCFS: P1 runs first, then P2, then P3
     // P1: 0-5, P2: 5-8, P3: 8-16
+    // Check metrics instead of ganttEntries (we now generate per-tick entries, merged in GanttChart)
 
-    expect(result.ganttEntries).toHaveLength(3);
-    expect(result.ganttEntries[0]).toEqual({ processId: 'P1', startTime: 0, endTime: 5, type: 'CPU' });
-    expect(result.ganttEntries[1]).toEqual({ processId: 'P2', startTime: 5, endTime: 8, type: 'CPU' });
-    expect(result.ganttEntries[2]).toEqual({ processId: 'P3', startTime: 8, endTime: 16, type: 'CPU' });
+    const p1Metrics = result.metrics.processes.find(p => p.id === 'P1');
+    const p2Metrics = result.metrics.processes.find(p => p.id === 'P2');
+    const p3Metrics = result.metrics.processes.find(p => p.id === 'P3');
+
+    // P1: turnaround = 5-0 = 5, waiting = 5-5 = 0
+    expect(p1Metrics?.turnaroundTime).toBe(5);
+    expect(p1Metrics?.waitingTime).toBe(0);
+
+    // P2: turnaround = 8-1 = 7, waiting = 7-3 = 4
+    expect(p2Metrics?.turnaroundTime).toBe(7);
+    expect(p2Metrics?.waitingTime).toBe(4);
+
+    // P3: turnaround = 16-2 = 14, waiting = 14-8 = 6
+    expect(p3Metrics?.turnaroundTime).toBe(14);
+    expect(p3Metrics?.waitingTime).toBe(6);
   });
 
   it('should handle process arrivals at different times', () => {
@@ -32,8 +44,16 @@ describe('FCFS Algorithm', () => {
     const result = SimulationEngine.simulate(processes, config);
 
     // P1 runs 0-4, CPU idle 4-5, P2 runs 5-8
-    expect(result.ganttEntries[0]).toEqual({ processId: 'P1', startTime: 0, endTime: 4, type: 'CPU' });
-    expect(result.ganttEntries[1]).toEqual({ processId: 'P2', startTime: 5, endTime: 8, type: 'CPU' });
+    const p1Metrics = result.metrics.processes.find(p => p.id === 'P1');
+    const p2Metrics = result.metrics.processes.find(p => p.id === 'P2');
+
+    // P1: turnaround = 4-0 = 4, waiting = 4-4 = 0
+    expect(p1Metrics?.turnaroundTime).toBe(4);
+    expect(p1Metrics?.waitingTime).toBe(0);
+
+    // P2: turnaround = 8-5 = 3, waiting = 3-3 = 0
+    expect(p2Metrics?.turnaroundTime).toBe(3);
+    expect(p2Metrics?.waitingTime).toBe(0);
   });
 
   it('should calculate correct waiting times', () => {
@@ -97,9 +117,22 @@ describe('SRTF Algorithm', () => {
     const result = SimulationEngine.simulate(processes, config);
 
     // All arrive at 0, shortest first: P2(3), P1(5), P3(8)
-    expect(result.ganttEntries[0].processId).toBe('P2');
-    expect(result.ganttEntries[1].processId).toBe('P1');
-    expect(result.ganttEntries[2].processId).toBe('P3');
+    // Check metrics
+    const p1Metrics = result.metrics.processes.find(p => p.id === 'P1');
+    const p2Metrics = result.metrics.processes.find(p => p.id === 'P2');
+    const p3Metrics = result.metrics.processes.find(p => p.id === 'P3');
+
+    // P2 runs first (shortest), so P2 turnaround = 3
+    expect(p2Metrics?.turnaroundTime).toBe(3);
+    expect(p2Metrics?.waitingTime).toBe(0);
+
+    // P1 runs second, turnaround = 8-0 = 8, waiting = 8-5 = 3
+    expect(p1Metrics?.turnaroundTime).toBe(8);
+    expect(p1Metrics?.waitingTime).toBe(3);
+
+    // P3 runs last, turnaround = 16-0 = 16, waiting = 16-8 = 8
+    expect(p3Metrics?.turnaroundTime).toBe(16);
+    expect(p3Metrics?.waitingTime).toBe(8);
   });
 });
 

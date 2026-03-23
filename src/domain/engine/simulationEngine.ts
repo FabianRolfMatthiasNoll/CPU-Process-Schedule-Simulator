@@ -25,11 +25,8 @@ export class SimulationEngine {
   private runningProcessId: string | null = null;
   private finished: boolean = false;
 
-  // Gantt chart tracking
+  // Gantt chart tracking - only completed blocks
   private ganttEntries: GanttEntry[] = [];
-  private currentGanttStart: number | null = null;
-  private runningDispatchEnd: number | null = null; // When current dispatch will end
-  private ioGanttStart: Map<string, number> = new Map(); // processId -> startTime
 
   // Event log
   private events: SimulationEvent[] = [];
@@ -70,8 +67,7 @@ export class SimulationEngine {
         bursts: def.bursts,
         currentBurstIndex: 0,
         remainingBurstTime: firstBurst?.type === "CPU" ? firstBurst.duration : 0,
-        ioRemainingTime: 0,
-        ioBurstDuration: 0,
+        burstStartTime: 0,
         state: "NEW",
         totalCpuTime,
         totalIoTime,
@@ -85,14 +81,17 @@ export class SimulationEngine {
     }
   }
 
-  // ============================================
-  // Core Tick Method - EXACT SEQUENCE
-  // ============================================
-
   tick(): StateSnapshot {
     if (this.finished) {
       return this.createSnapshot();
     }
+
+    const currentTime = this.time;
+
+    // Capture blocked queue and running process BEFORE we make changes this tick
+    // Only processes that were blocked BEFORE this tick should record an IO tick
+    const previouslyBlocked = [...this.blockedQueue];
+    const cpuProcessId = this.runningProcessId; // Who ran CPU BEFORE executeRunningProcess
 
     // STEP 1: Handle arrivals at current time
     this.handleArrivals();
@@ -107,8 +106,25 @@ export class SimulationEngine {
       this.executeRunningProcess();
     }
 
-    // STEP 4: Decrement IO time for blocked processes
-    this.decrementBlockedProcesses();
+    // STEP 4: Decrement IO time for blocked processes and record IO ticks
+    // Only processes that were blocked BEFORE this tick ran IO during [currentTime, currentTime+1)
+    // Skip a process if it ran CPU this tick (cpuProcessId) - it can't also do IO this tick
+    for (const pid of previouslyBlocked) {
+      // Skip if this process ran CPU this tick - it can't also do IO in same tick
+      if (pid === cpuProcessId) continue;
+
+      const proc = this.processes.get(pid);
+      if (proc) {
+        proc.remainingBurstTime--;
+        // Record IO tick: [currentTime, currentTime + 1)
+        this.ganttEntries.push({
+          processId: pid,
+          startTime: currentTime,
+          endTime: currentTime + 1,
+          type: "IO",
+        });
+      }
+    }
 
     // STEP 5: Check for IO completions and move to ready
     this.handleIOCompletions();
@@ -163,6 +179,14 @@ export class SimulationEngine {
     const burst = process.bursts[process.currentBurstIndex];
     if (!burst || burst.type !== "CPU") return;
 
+    // Record CPU tick: [this.time, this.time + 1)
+    this.ganttEntries.push({
+      processId: process.id,
+      startTime: this.time,
+      endTime: this.time + 1,
+      type: "CPU",
+    });
+
     // Consume exactly 1 tick of CPU time
     process.remainingBurstTime--;
     process.quantumUsed++;
@@ -178,20 +202,7 @@ export class SimulationEngine {
 
     // Check if burst completed
     if (process.remainingBurstTime === 0) {
-      this.completeCpuBurst();
-    }
-  }
-
-  // ============================================
-  // Step 4: Decrement Blocked Processes
-  // ============================================
-
-  private decrementBlockedProcesses(): void {
-    for (const pid of this.blockedQueue) {
-      const proc = this.processes.get(pid);
-      if (proc) {
-        proc.ioRemainingTime--;
-      }
+      this.completeCurrentBurst();
     }
   }
 
@@ -204,7 +215,7 @@ export class SimulationEngine {
 
     for (const pid of this.blockedQueue) {
       const proc = this.processes.get(pid);
-      if (proc && proc.ioRemainingTime === 0) {
+      if (proc && proc.remainingBurstTime === 0) {
         completedIO.push(pid);
       }
     }
@@ -242,18 +253,9 @@ export class SimulationEngine {
     }
 
     process.state = "RUNNING";
-    process.quantumUsed = 0;  // Reset quantum counter for RR
+    process.quantumUsed = 0;
+    process.burstStartTime = this.time;
     this.runningProcessId = processId;
-    this.currentGanttStart = this.time;
-
-    // Calculate when this dispatch will end
-    if (this.quantum !== null) {
-      // RR: dispatch ends at quantum expiration or burst completion
-      this.runningDispatchEnd = this.time + Math.min(this.quantum, process.remainingBurstTime);
-    } else {
-      // FCFS/SRTF: dispatch ends when burst completes
-      this.runningDispatchEnd = this.time + process.remainingBurstTime;
-    }
 
     // Set response time on first CPU
     if (process.firstCpuTime === null) {
@@ -271,56 +273,43 @@ export class SimulationEngine {
     const process = this.processes.get(processId);
     if (!process) return;
 
-    // Close Gantt entry
-    this.closeGanttEntry();
-
     this.addEvent({ type: "PROCESS_PREEMPTED", processId, time: this.time });
 
     process.state = "READY";
     this.readyQueue.push(processId);
     this.runningProcessId = null;
-    this.currentGanttStart = null;
-    this.runningDispatchEnd = null;
   }
 
-  private completeCpuBurst(): void {
+  private completeCurrentBurst(): void {
     const processId = this.runningProcessId;
     if (!processId) return;
 
     const process = this.processes.get(processId);
     if (!process) return;
 
-    // Close Gantt entry
-    this.closeGanttEntry();
-
     this.addEvent({ type: "CPU_BURST_COMPLETED", processId, time: this.time });
 
+    // Move to next burst
     process.currentBurstIndex++;
     this.runningProcessId = null;
-    this.currentGanttStart = null;
-    this.runningDispatchEnd = null;
 
     if (process.currentBurstIndex < process.bursts.length) {
       const nextBurst = process.bursts[process.currentBurstIndex];
 
       if (nextBurst.type === "IO") {
-        // Start IO burst - duration is exact
         process.state = "BLOCKED";
-        process.ioRemainingTime = nextBurst.duration;
-        process.ioBurstDuration = nextBurst.duration; // Store original duration for rendering
+        process.remainingBurstTime = nextBurst.duration;
+        process.burstStartTime = this.time + 1; // Will execute starting next tick
         this.blockedQueue.push(processId);
-        // Track IO in Gantt - start at next tick (current time + 1)
-        // so IO appears to start AFTER CPU burst ends visually
-        this.ioGanttStart.set(processId, this.time + 1);
-        this.addEvent({ type: "IO_BURST_STARTED", processId, time: this.time });
       } else {
-        // Next CPU burst
+        // Next CPU burst - will run immediately in this tick
         process.state = "READY";
         process.remainingBurstTime = nextBurst.duration;
+        process.burstStartTime = this.time; // CPU runs immediately
         this.readyQueue.push(processId);
       }
     } else {
-      // Process finished - finish time is this.time + 1 (end of current tick)
+      // Process finished
       process.state = "FINISHED";
       process.turnaroundTime = (this.time + 1) - process.arrivalTime;
       this.addEvent({ type: "PROCESS_FINISHED", processId, time: this.time });
@@ -331,19 +320,6 @@ export class SimulationEngine {
     const process = this.processes.get(processId);
     if (!process) return;
 
-    // Close IO Gantt entry using stored start and duration
-    const ioStart = this.ioGanttStart.get(processId);
-    if (ioStart !== undefined) {
-      // endTime = start + duration (not this.time + 1 which would be wrong)
-      this.ganttEntries.push({
-        processId,
-        startTime: ioStart,
-        endTime: ioStart + process.ioBurstDuration,
-        type: "IO",
-      });
-      this.ioGanttStart.delete(processId);
-    }
-
     // Remove from blocked queue
     const idx = this.blockedQueue.indexOf(processId);
     if (idx >= 0) {
@@ -353,11 +329,14 @@ export class SimulationEngine {
     // Move to next burst
     process.currentBurstIndex++;
 
-    const nextBurst = process.bursts[process.currentBurstIndex];
-    if (nextBurst && nextBurst.type === "CPU") {
-      process.state = "READY";
-      process.remainingBurstTime = nextBurst.duration;
-      this.readyQueue.push(processId);
+    if (process.currentBurstIndex < process.bursts.length) {
+      const nextBurst = process.bursts[process.currentBurstIndex];
+      if (nextBurst.type === "CPU") {
+        process.state = "READY";
+        process.remainingBurstTime = nextBurst.duration;
+        process.burstStartTime = this.time + 1; // Will be set when dispatched
+        this.readyQueue.push(processId);
+      }
     }
 
     this.addEvent({ type: "IO_BURST_COMPLETED", processId, time: this.time });
@@ -393,20 +372,6 @@ export class SimulationEngine {
     };
   }
 
-  private closeGanttEntry(): void {
-    if (this.currentGanttStart !== null && this.runningProcessId !== null) {
-      // endTime is this.time + 1 because this.time hasn't been incremented yet
-      // and the CPU is busy until the end of the current tick
-      this.ganttEntries.push({
-        processId: this.runningProcessId,
-        startTime: this.currentGanttStart,
-        endTime: this.time + 1,
-        type: "CPU",
-      });
-      this.currentGanttStart = null;
-    }
-  }
-
   private checkAllFinished(): boolean {
     for (const proc of this.processes.values()) {
       if (proc.state !== "FINISHED") {
@@ -428,8 +393,7 @@ export class SimulationEngine {
         state: proc.state,
         currentBurstIndex: proc.currentBurstIndex,
         remainingBurstTime: proc.remainingBurstTime,
-        ioRemainingTime: proc.ioRemainingTime,
-        ioBurstDuration: proc.ioBurstDuration,
+        burstStartTime: proc.burstStartTime,
         waitingTime: proc.waitingTime,
         turnaroundTime: proc.turnaroundTime,
         responseTime: proc.responseTime,
@@ -443,9 +407,6 @@ export class SimulationEngine {
       blockedQueue: [...this.blockedQueue],
       runningProcessId: this.runningProcessId,
       ganttEntries: [...this.ganttEntries],
-      currentGanttStart: this.currentGanttStart,
-      runningDispatchEnd: this.runningDispatchEnd,
-      ioSnapshotStarts: new Map(this.ioGanttStart),
     };
   }
 
@@ -472,16 +433,6 @@ export class SimulationEngine {
   runToCompletion(): SimulationResult {
     while (!this.finished) {
       this.tick();
-    }
-
-    // Close any open Gantt entry at termination
-    if (this.currentGanttStart !== null && this.runningProcessId !== null) {
-      this.ganttEntries.push({
-        processId: this.runningProcessId,
-        startTime: this.currentGanttStart,
-        endTime: this.time + 1,
-        type: "CPU",
-      });
     }
 
     const processList = Array.from(this.processes.values());
