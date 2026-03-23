@@ -128,12 +128,15 @@ export default function GanttChart() {
                           key={`block-${processId}-${idx}`}
                           className={`absolute top-1 bottom-1 rounded flex items-center justify-center text-white text-xs font-medium z-10 ${
                             block.type === 'IO'
-                              ? 'bg-orange-400'
+                              ? `${getProcessColor(processId)} opacity-30`
                               : getProcessColor(processId)
                           }`}
                           style={{
                             left: `${block.startTime * pixelsPerUnit}px`,
                             width: `${(block.endTime - block.startTime) * pixelsPerUnit}px`,
+                            backgroundImage: block.type === 'IO'
+                              ? `repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.2) 4px, rgba(0,0,0,0.2) 8px)`
+                              : undefined,
                           }}
                           initial={{ opacity: 0, scaleY: 0 }}
                           animate={{ opacity: 1, scaleY: 1 }}
@@ -218,11 +221,16 @@ export default function GanttChart() {
                         <div
                           key={`burst-${proc.id}-${idx}`}
                           className={`absolute top-1 bottom-1 rounded flex items-center justify-center text-white text-xs font-medium z-10 ${
-                            block.type === 'CPU' ? getProcessColor(proc.id) : 'bg-orange-400'
+                            block.type === 'IO'
+                              ? `${getProcessColor(proc.id)} opacity-30`
+                              : getProcessColor(proc.id)
                           }`}
                           style={{
                             left: `${block.start * pixelsPerUnit}px`,
                             width: `${(block.end - block.start) * pixelsPerUnit}px`,
+                            backgroundImage: block.type === 'IO'
+                              ? `repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.2) 4px, rgba(0,0,0,0.2) 8px)`
+                              : undefined,
                           }}
                         >
                           <span className="truncate px-1">

@@ -7,12 +7,12 @@ import BlockedQueue from './components/BlockedQueue';
 import RunningProcess from './components/RunningProcess';
 import MetricsDisplay from './components/MetricsDisplay';
 import ControlPanel from './components/ControlPanel';
-import ProcessForm from './components/ProcessForm';
+import ProcessModal from './components/ProcessModal';
 import PracticeMode from './components/PracticeMode';
 import ScenarioSelector from './components/ScenarioSelector';
 
 function App() {
-  const [showForm, setShowForm] = useState(false);
+  const [showProcessModal, setShowProcessModal] = useState(false);
   const {
     mode,
     currentTime,
@@ -79,12 +79,11 @@ function App() {
                 </div>
               )}
               <button
-                onClick={() => setShowForm(!showForm)}
+                onClick={() => setShowProcessModal(true)}
                 className="mt-4 w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
               >
-                {showForm ? 'Formular verstecken' : 'Prozesse definieren'}
+                Prozesse definieren
               </button>
-              {showForm && <ProcessForm />}
             </div>
 
             <ControlPanel />
@@ -132,6 +131,11 @@ function App() {
           </div>
         </div>
       </main>
+
+      <ProcessModal
+        isOpen={showProcessModal}
+        onClose={() => setShowProcessModal(false)}
+      />
     </div>
   );
 }

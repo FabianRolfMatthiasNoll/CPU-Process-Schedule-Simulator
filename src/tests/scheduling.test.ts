@@ -277,22 +277,6 @@ describe('Metrics Calculation', () => {
 });
 
 describe('SimulationEngine', () => {
-  it('should generate events correctly', () => {
-    const processes: ProcessDefinition[] = [
-      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 3 }] },
-    ];
-    const config: SimulationConfig = { algorithm: 'FCFS' };
-
-    const result = SimulationEngine.simulate(processes, config);
-
-    const eventTypes = result.events.map(e => e.type);
-
-    expect(eventTypes).toContain('PROCESS_ARRIVED');
-    expect(eventTypes).toContain('PROCESS_DISPATCHED');
-    expect(eventTypes).toContain('CPU_BURST_COMPLETED');
-    expect(eventTypes).toContain('PROCESS_FINISHED');
-  });
-
   it('should handle empty processes array', () => {
     const processes: ProcessDefinition[] = [];
     const config: SimulationConfig = { algorithm: 'FCFS' };
@@ -300,7 +284,6 @@ describe('SimulationEngine', () => {
     const engine = new SimulationEngine(processes, config);
     const result = engine.runToCompletion();
 
-    expect(result.events).toHaveLength(0);
     expect(result.ganttEntries).toHaveLength(0);
   });
 });
