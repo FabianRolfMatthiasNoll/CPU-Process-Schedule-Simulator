@@ -21,6 +21,7 @@ export type Process = {
   currentBurstIndex: number;
   remainingBurstTime: number;  // Remaining time in current CPU burst
   ioRemainingTime: number;    // Remaining time in current IO burst
+  ioBurstDuration: number;   // Original IO burst duration (for rendering width)
   state: ProcessState;
   totalCpuTime: number;
   totalIoTime: number;
@@ -51,6 +52,7 @@ export type ProcessSnapshot = {
   currentBurstIndex: number;
   remainingBurstTime: number;
   ioRemainingTime: number;
+  ioBurstDuration: number; // Original IO burst duration (for rendering width)
   waitingTime: number;
   turnaroundTime: number;
   responseTime: number | null;

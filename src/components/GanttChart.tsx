@@ -44,14 +44,20 @@ export default function GanttChart() {
   const rowHeight = 40;
   const labelWidth = 50;
 
-  // Get current snapshot to find IO start times
+  // Get current snapshot to find IO start times and burst durations
   const { snapshots, currentSnapshotIndex } = useSimulationStore.getState();
   const currentSnapshot = snapshots[currentSnapshotIndex] || null;
   let currentGanttStart: number | null = null;
   let ioSnapshotStarts = new Map<string, number>(); // processId -> IO start time
+  const ioBurstDurations = new Map<string, number>(); // processId -> original IO burst duration
   if (currentSnapshot) {
     currentGanttStart = currentSnapshot.currentGanttStart;
     ioSnapshotStarts = currentSnapshot.ioSnapshotStarts;
+    for (const [pid, procSnap] of currentSnapshot.processes) {
+      if (procSnap.state === 'BLOCKED' && procSnap.ioBurstDuration > 0) {
+        ioBurstDurations.set(pid, procSnap.ioBurstDuration);
+      }
+    }
   }
 
   return (
@@ -155,14 +161,14 @@ export default function GanttChart() {
                         </motion.div>
                       )}
 
-                      {/* Blocked/IO block - show executed portion from ioSnapshotStart to currentTime */}
-                      {isBlocked && ioSnapshotStarts.has(processId) && (
+                      {/* Blocked/IO block - width based on ioBurstDuration, positioned at ioSnapshotStart */}
+                      {isBlocked && ioSnapshotStarts.has(processId) && ioBurstDurations.has(processId) && (
                         <motion.div
                           key={`blocked-${processId}`}
                           className={`absolute top-1 bottom-1 ${IO_COLOR} rounded flex items-center justify-center text-white text-xs font-medium z-10 opacity-70`}
                           style={{
                             left: `${ioSnapshotStarts.get(processId)! * pixelsPerUnit}px`,
-                            width: `${(currentTime - ioSnapshotStarts.get(processId)!) * pixelsPerUnit}px`,
+                            width: `${ioBurstDurations.get(processId)! * pixelsPerUnit}px`,
                           }}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 0.7 }}

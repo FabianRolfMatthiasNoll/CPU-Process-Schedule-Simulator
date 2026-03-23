@@ -71,6 +71,7 @@ export class SimulationEngine {
         currentBurstIndex: 0,
         remainingBurstTime: firstBurst?.type === "CPU" ? firstBurst.duration : 0,
         ioRemainingTime: 0,
+        ioBurstDuration: 0,
         state: "NEW",
         totalCpuTime,
         totalIoTime,
@@ -306,9 +307,11 @@ export class SimulationEngine {
         // Start IO burst - duration is exact
         process.state = "BLOCKED";
         process.ioRemainingTime = nextBurst.duration;
+        process.ioBurstDuration = nextBurst.duration; // Store original duration for rendering
         this.blockedQueue.push(processId);
-        // Track IO in Gantt - start at current time, end will be set on completion
-        this.ioGanttStart.set(processId, this.time);
+        // Track IO in Gantt - start at next tick (current time + 1)
+        // so IO appears to start AFTER CPU burst ends visually
+        this.ioGanttStart.set(processId, this.time + 1);
         this.addEvent({ type: "IO_BURST_STARTED", processId, time: this.time });
       } else {
         // Next CPU burst
@@ -328,13 +331,14 @@ export class SimulationEngine {
     const process = this.processes.get(processId);
     if (!process) return;
 
-    // Close IO Gantt entry
+    // Close IO Gantt entry using stored start and duration
     const ioStart = this.ioGanttStart.get(processId);
     if (ioStart !== undefined) {
+      // endTime = start + duration (not this.time + 1 which would be wrong)
       this.ganttEntries.push({
         processId,
         startTime: ioStart,
-        endTime: this.time + 1, // IO completes at end of this tick
+        endTime: ioStart + process.ioBurstDuration,
         type: "IO",
       });
       this.ioGanttStart.delete(processId);
@@ -425,6 +429,7 @@ export class SimulationEngine {
         currentBurstIndex: proc.currentBurstIndex,
         remainingBurstTime: proc.remainingBurstTime,
         ioRemainingTime: proc.ioRemainingTime,
+        ioBurstDuration: proc.ioBurstDuration,
         waitingTime: proc.waitingTime,
         turnaroundTime: proc.turnaroundTime,
         responseTime: proc.responseTime,
