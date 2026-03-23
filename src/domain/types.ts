@@ -59,16 +59,6 @@ export type SimulationConfig = {
   quantum?: number;
 };
 
-export type SimulationEvent =
-  | { type: "PROCESS_ARRIVED"; processId: string; time: number }
-  | { type: "PROCESS_DISPATCHED"; processId: string; time: number }
-  | { type: "PROCESS_PREEMPTED"; processId: string; time: number }
-  | { type: "CPU_BURST_COMPLETED"; processId: string; time: number }
-  | { type: "IO_BURST_STARTED"; processId: string; time: number }
-  | { type: "IO_BURST_COMPLETED"; processId: string; time: number }
-  | { type: "PROCESS_FINISHED"; processId: string; time: number }
-  | { type: "TIME_ADVANCED"; time: number };
-
 export type MetricsSummary = {
   processes: {
     id: string;
@@ -84,7 +74,6 @@ export type MetricsSummary = {
 };
 
 export type SimulationResult = {
-  events: SimulationEvent[];
   metrics: MetricsSummary;
   ganttEntries: GanttEntry[];
 };

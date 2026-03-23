@@ -1,7 +1,6 @@
 import {
   ProcessDefinition,
   SimulationConfig,
-  SimulationEvent,
   SimulationResult,
   MetricsSummary,
   GanttEntry,
@@ -25,11 +24,8 @@ export class SimulationEngine {
   private runningProcessId: string | null = null;
   private finished: boolean = false;
 
-  // Gantt chart tracking - only completed blocks
+  // Gantt chart tracking - per-tick entries
   private ganttEntries: GanttEntry[] = [];
-
-  // Event log
-  private events: SimulationEvent[] = [];
 
   constructor(processes: ProcessDefinition[], config: SimulationConfig) {
     this.config = config;
@@ -152,7 +148,6 @@ export class SimulationEngine {
       if (process.state === "NEW" && process.arrivalTime === this.time) {
         process.state = "READY";
         this.readyQueue.push(id);
-        this.addEvent({ type: "PROCESS_ARRIVED", processId: id, time: this.time });
       }
     }
   }
@@ -262,8 +257,6 @@ export class SimulationEngine {
       process.firstCpuTime = this.time;
       process.responseTime = this.time - process.arrivalTime;
     }
-
-    this.addEvent({ type: "PROCESS_DISPATCHED", processId, time: this.time });
   }
 
   private preemptProcess(): void {
@@ -272,8 +265,6 @@ export class SimulationEngine {
 
     const process = this.processes.get(processId);
     if (!process) return;
-
-    this.addEvent({ type: "PROCESS_PREEMPTED", processId, time: this.time });
 
     process.state = "READY";
     this.readyQueue.push(processId);
@@ -286,8 +277,6 @@ export class SimulationEngine {
 
     const process = this.processes.get(processId);
     if (!process) return;
-
-    this.addEvent({ type: "CPU_BURST_COMPLETED", processId, time: this.time });
 
     // Move to next burst
     process.currentBurstIndex++;
@@ -312,7 +301,6 @@ export class SimulationEngine {
       // Process finished
       process.state = "FINISHED";
       process.turnaroundTime = (this.time + 1) - process.arrivalTime;
-      this.addEvent({ type: "PROCESS_FINISHED", processId, time: this.time });
     }
   }
 
@@ -338,8 +326,6 @@ export class SimulationEngine {
         this.readyQueue.push(processId);
       }
     }
-
-    this.addEvent({ type: "IO_BURST_COMPLETED", processId, time: this.time });
   }
 
   // ============================================
@@ -379,10 +365,6 @@ export class SimulationEngine {
       }
     }
     return true;
-  }
-
-  private addEvent(event: SimulationEvent): void {
-    this.events.push(event);
   }
 
   private createSnapshot(): StateSnapshot {
@@ -426,10 +408,6 @@ export class SimulationEngine {
     return this.finished;
   }
 
-  getEvents(): SimulationEvent[] {
-    return [...this.events];
-  }
-
   runToCompletion(): SimulationResult {
     while (!this.finished) {
       this.tick();
@@ -458,7 +436,6 @@ export class SimulationEngine {
     }
 
     return {
-      events: [...this.events],
       metrics,
       ganttEntries: [...this.ganttEntries],
     };
