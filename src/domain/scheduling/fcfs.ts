@@ -4,6 +4,11 @@ export class FCFSAlgorithm implements SchedulingAlgorithm {
   name = "FCFS";
 
   decideNextProcess(state: SchedulingState): string | null {
+    // FCFS doesn't preempt - if there's a running process, keep it
+    if (state.runningProcessId !== null) {
+      return state.runningProcessId;
+    }
+
     if (state.readyQueue.length === 0) {
       return null;
     }

@@ -9,11 +9,15 @@ export class RRAlgorithm implements SchedulingAlgorithm {
   }
 
   decideNextProcess(state: SchedulingState): string | null {
-    // RR: Simple round-robin - pick from front of queue
-    // Preemption is handled by engine based on quantumUsed
+    // RR doesn't preempt based on new arrivals - quantum preemption is handled in executeRunningProcess
+    if (state.runningProcessId !== null) {
+      return state.runningProcessId;
+    }
+
     if (state.readyQueue.length === 0) {
       return null;
     }
+    // RR: Simple round-robin - pick from front of queue
     return state.readyQueue[0];
   }
 

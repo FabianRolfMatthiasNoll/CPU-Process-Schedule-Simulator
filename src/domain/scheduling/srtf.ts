@@ -4,7 +4,8 @@ export class SRTFAlgorithm implements SchedulingAlgorithm {
   name = "SRTF";
 
   decideNextProcess(state: SchedulingState): string | null {
-    if (state.readyQueue.length === 0) {
+    // If no running process and no ready processes, nothing to do
+    if (state.runningProcessId === null && state.readyQueue.length === 0) {
       return null;
     }
 
@@ -20,20 +21,25 @@ export class SRTFAlgorithm implements SchedulingAlgorithm {
       }
     }
 
-    if (shortestProcessId === null) {
-      return null;
-    }
-
-    // SRTF: If running process has remaining time > shortest ready, preempt
-    if (state.runningProcessId !== null && state.runningProcessId !== shortestProcessId) {
+    // If there's a running process, check if we should preempt
+    if (state.runningProcessId !== null) {
       const runningInfo = state.processInfos.get(state.runningProcessId);
-      if (runningInfo && runningInfo.remainingCpuTime > shortestTime) {
-        // Preempt current process
-        return shortestProcessId;
+      if (runningInfo) {
+        // If no ready process or running is shorter/equal, keep running
+        if (shortestProcessId === null || runningInfo.remainingCpuTime <= shortestTime) {
+          return state.runningProcessId;
+        }
+        // Running is longer than shortest, preempt
+        if (shortestProcessId !== null && runningInfo.remainingCpuTime > shortestTime) {
+          return shortestProcessId;
+        }
       }
     }
 
-    // If no running process or current is shortest, run shortest
+    // No running process - run shortest from ready queue
+    if (shortestProcessId === null) {
+      return null;
+    }
     return shortestProcessId;
   }
 }

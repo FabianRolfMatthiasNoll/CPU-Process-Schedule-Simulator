@@ -92,10 +92,8 @@ export class SimulationEngine {
     // STEP 1: Handle arrivals at current time
     this.handleArrivals();
 
-    // STEP 2: If no process running, call scheduler
-    if (this.runningProcessId === null) {
-      this.schedule();
-    }
+    // STEP 2: Call scheduler (handles preemption for SRTF, or just picks next for FCFS/RR)
+    this.schedule();
 
     // STEP 3: Execute current process for exactly 1 tick
     if (this.runningProcessId !== null) {
@@ -153,14 +151,24 @@ export class SimulationEngine {
   }
 
   // ============================================
-  // Step 2: Schedule (if no process running)
+  // Step 2: Schedule
   // ============================================
 
   private schedule(): void {
     const nextProcessId = this.algorithm.decideNextProcess(this.buildSchedulingState());
-    if (nextProcessId) {
-      this.dispatchProcess(nextProcessId);
+    if (!nextProcessId) return;
+
+    // If same process is running, nothing to do
+    if (this.runningProcessId === nextProcessId) {
+      return;
     }
+
+    // If there's a running process, preempt it first
+    if (this.runningProcessId !== null && this.runningProcessId !== nextProcessId) {
+      this.preemptProcess();
+    }
+
+    this.dispatchProcess(nextProcessId);
   }
 
   // ============================================
