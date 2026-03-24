@@ -390,6 +390,15 @@ export class SimulationEngine {
         firstCpuTime: proc.firstCpuTime,
       });
     }
+
+    // Find processes arriving at the current snapshot time
+    const currentTickArrivals: string[] = [];
+    for (const [id, proc] of this.processes) {
+      if (proc.arrivalTime === this.time) {
+        currentTickArrivals.push(id);
+      }
+    }
+
     return {
       time: this.time,
       processes: processSnapshots,
@@ -397,6 +406,7 @@ export class SimulationEngine {
       blockedQueue: [...this.blockedQueue],
       runningProcessId: this.runningProcessId,
       ganttEntries: [...this.ganttEntries],
+      currentTickArrivals,
     };
   }
 

@@ -39,6 +39,7 @@ export type StateSnapshot = {
   blockedQueue: string[];
   runningProcessId: string | null;
   ganttEntries: GanttEntry[];
+  currentTickArrivals: string[];  // Process IDs that arrived at the current time
 };
 
 // Immutable snapshot of a single process (for storing in StateSnapshot)

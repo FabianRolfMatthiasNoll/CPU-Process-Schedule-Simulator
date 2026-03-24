@@ -8,6 +8,7 @@ import RunningProcess from './components/RunningProcess';
 import MetricsDisplay from './components/MetricsDisplay';
 import ControlPanel from './components/ControlPanel';
 import ProcessModal from './components/ProcessModal';
+import ArrivalsQueue from './components/ArrivalsQueue';
 import PracticeMode from './components/PracticeMode';
 import ScenarioSelector from './components/ScenarioSelector';
 
@@ -112,7 +113,8 @@ function App() {
             </div>
 
             {/* Process State Visualization */}
-            <div className="grid grid-cols-3 gap-4 flex-shrink-0">
+            <div className="grid grid-cols-4 gap-4 flex-shrink-0">
+              <ArrivalsQueue />
               <RunningProcess />
               <ReadyQueue />
               <BlockedQueue />
