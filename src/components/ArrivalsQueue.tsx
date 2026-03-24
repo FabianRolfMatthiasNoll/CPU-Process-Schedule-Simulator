@@ -2,7 +2,8 @@ import { useSimulationStore } from '../application';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ArrivalsQueue() {
-  const { currentTime, snapshots, currentSnapshotIndex, processDefinitions } = useSimulationStore();
+  const { currentTime, snapshots, currentSnapshotIndex, processDefinitions, config } = useSimulationStore();
+  const showPriority = config.algorithm === 'Priority';
 
   // Get processes that arrived at the current tick
   const arrivals: string[] = [];
@@ -32,13 +33,19 @@ export default function ArrivalsQueue() {
     return total;
   };
 
+  // Get priority for a process
+  const getPriority = (processId: string): number | null => {
+    const procDef = processDefinitions.find(p => p.id === processId);
+    return procDef?.priority ?? null;
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-4">
-      <h3 className="font-semibold text-gray-900 mb-3">Neu Angekommen</h3>
+      <h3 className="font-semibold text-gray-900 mb-3">New Arrivals</h3>
       <div className="border-2 border-dashed border-purple-200 rounded-lg p-3 min-h-[60px]">
         <AnimatePresence mode="popLayout">
           {arrivals.length === 0 ? (
-            <div className="text-sm text-gray-400 italic">Keine Ankünfte</div>
+            <div className="text-sm text-gray-400 italic">No arrivals</div>
           ) : (
             <div className="flex items-center gap-2">
               <motion.div
@@ -54,7 +61,12 @@ export default function ArrivalsQueue() {
                     exit={{ opacity: 0, y: 10 }}
                     className="bg-purple-100 border-2 border-purple-400 text-purple-900 rounded-lg px-3 py-2 text-sm font-bold flex flex-col items-center"
                   >
-                    <span>{processId}</span>
+                    <span className="flex items-center gap-1">
+                      {processId}
+                      {showPriority && getPriority(processId) !== null && (
+                        <span className="bg-purple-600 text-white text-xs px-1 rounded">{String.fromCharCode(64 + getPriority(processId)!)}</span>
+                      )}
+                    </span>
                     <span className="text-xs opacity-70">Rem: {getRemainingCpu(processId)}</span>
                   </motion.div>
                 ))}
@@ -64,7 +76,7 @@ export default function ArrivalsQueue() {
         </AnimatePresence>
       </div>
       <div className="mt-2 text-xs text-gray-500">
-        Ankünfte bei t={currentTime}
+        Arrivals at t={currentTime}
       </div>
     </div>
   );

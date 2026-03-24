@@ -9,9 +9,9 @@ export default function MetricsDisplay() {
   if (!metrics || !isComplete) {
     return (
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-900 mb-4">Metriken</h3>
+        <h3 className="font-semibold text-gray-900 mb-4">Metrics</h3>
         <div className="text-sm text-gray-500 italic">
-          Metriken werden nach Abschluss der Simulation angezeigt.
+          Metrics shown after simulation completes.
         </div>
       </div>
     );
@@ -19,24 +19,24 @@ export default function MetricsDisplay() {
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
-      <h3 className="font-semibold text-gray-900 mb-4">Metriken</h3>
+      <h3 className="font-semibold text-gray-900 mb-4">Metrics</h3>
 
       {/* Average Metrics */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-blue-50 rounded-lg p-3">
-          <div className="text-xs text-blue-600 font-medium">Durchschn. Waiting Time</div>
+          <div className="text-xs text-blue-600 font-medium">Avg. Waiting Time</div>
           <div className="text-2xl font-bold text-blue-900">
             {metrics.averages.waitingTime.toFixed(2)}
           </div>
         </div>
         <div className="bg-green-50 rounded-lg p-3">
-          <div className="text-xs text-green-600 font-medium">Durchschn. Turnaround Time</div>
+          <div className="text-xs text-green-600 font-medium">Avg. Turnaround Time</div>
           <div className="text-2xl font-bold text-green-900">
             {metrics.averages.turnaroundTime.toFixed(2)}
           </div>
         </div>
         <div className="bg-purple-50 rounded-lg p-3">
-          <div className="text-xs text-purple-600 font-medium">Durchschn. Response Time</div>
+          <div className="text-xs text-purple-600 font-medium">Avg. Response Time</div>
           <div className="text-2xl font-bold text-purple-900">
             {metrics.averages.responseTime.toFixed(2)}
           </div>
@@ -48,7 +48,7 @@ export default function MetricsDisplay() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b">
-              <th className="text-left py-2 px-2 font-medium text-gray-600">Prozess</th>
+              <th className="text-left py-2 px-2 font-medium text-gray-600">Process</th>
               <th className="text-right py-2 px-2 font-medium text-gray-600">Waiting Time</th>
               <th className="text-right py-2 px-2 font-medium text-gray-600">Turnaround Time</th>
               <th className="text-right py-2 px-2 font-medium text-gray-600">Response Time</th>

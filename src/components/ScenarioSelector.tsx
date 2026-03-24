@@ -5,14 +5,95 @@ interface Scenario {
   name: string;
   description: string;
   processes: ProcessDefinition[];
-  algorithm: 'FCFS' | 'SRTF' | 'RR';
+  algorithm: 'FCFS' | 'SJF' | 'SRTF' | 'RR' | 'Priority';
   quantum?: number;
+  preemptive?: boolean;
 }
 
 const SCENARIOS: Scenario[] = [
   {
-    name: 'FCFS mit I/O',
-    description: 'Prozesse mit CPU- und I/O-Bursts - P1 wird blockiert während P2 läuft',
+    name: 'Generic I/O',
+    description: '4 processes with CPU-IO-CPU bursts, staggered arrivals',
+    algorithm: 'FCFS',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 4 }] },
+      {
+        id: 'P2',
+        arrivalTime: 1,
+        bursts: [
+          { type: 'CPU', duration: 3 },
+          { type: 'IO', duration: 4 },
+          { type: 'CPU', duration: 2 },
+        ],
+      },
+      {
+        id: 'P3',
+        arrivalTime: 2,
+        bursts: [
+          { type: 'CPU', duration: 2 },
+          { type: 'IO', duration: 3 },
+          { type: 'CPU', duration: 3 },
+        ],
+      },
+      {
+        id: 'P4',
+        arrivalTime: 3,
+        bursts: [
+          { type: 'CPU', duration: 4 },
+          { type: 'IO', duration: 2 },
+          { type: 'CPU', duration: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'Stalling CPU',
+    description: 'Long IO bursts cause CPU to stall - P2 and P3 have extended IO periods',
+    algorithm: 'FCFS',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 4 }] },
+      {
+        id: 'P2',
+        arrivalTime: 1,
+        bursts: [
+          { type: 'CPU', duration: 3 },
+          { type: 'IO', duration: 7 },
+          { type: 'CPU', duration: 2 },
+        ],
+      },
+      {
+        id: 'P3',
+        arrivalTime: 2,
+        bursts: [
+          { type: 'CPU', duration: 2 },
+          { type: 'IO', duration: 6 },
+          { type: 'CPU', duration: 3 },
+        ],
+      },
+      {
+        id: 'P4',
+        arrivalTime: 3,
+        bursts: [
+          { type: 'CPU', duration: 4 },
+          { type: 'IO', duration: 2 },
+          { type: 'CPU', duration: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'SRTF Preemption',
+    description: 'Shortest remaining time process preempts longer one when it arrives',
+    algorithm: 'SRTF',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }] },
+      { id: 'P2', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 3 }] },
+      { id: 'P3', arrivalTime: 4, bursts: [{ type: 'CPU', duration: 2 }] },
+    ],
+  },
+  {
+    name: 'FCFS with I/O',
+    description: 'CPU and I/O bursts - P1 blocks while P2 runs',
     algorithm: 'FCFS',
     processes: [
       {
@@ -37,49 +118,63 @@ const SCENARIOS: Scenario[] = [
     ],
   },
   {
-    name: 'SRTF Präemption',
-    description: 'Kürzerer Prozess unterbricht längeren - gut sichtbar in der Timeline',
-    algorithm: 'SRTF',
-    processes: [
-      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }] },
-      { id: 'P2', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 3 }] },
-      { id: 'P3', arrivalTime: 4, bursts: [{ type: 'CPU', duration: 2 }] },
-    ],
-  },
-  {
     name: 'Round Robin',
-    description: 'Prozesse mit leicht versetzten Ankunftszeiten - Time-Sharing (Quantum = 3)',
+    description: 'Time-sharing with quantum=3 - each process gets fair CPU time',
     algorithm: 'RR',
     quantum: 3,
     processes: [
       {
         id: 'P1',
         arrivalTime: 0,
-        bursts: [
-          { type: 'CPU', duration: 4 },
-          { type: 'IO', duration: 3 },
-          { type: 'CPU', duration: 3 },
-        ],
+        bursts: [{ type: 'CPU', duration: 6 }],
       },
       {
         id: 'P2',
         arrivalTime: 1,
-        bursts: [
-          { type: 'CPU', duration: 3 },
-          { type: 'IO', duration: 2 },
-          { type: 'CPU', duration: 2 },
-        ],
+        bursts: [{ type: 'CPU', duration: 4 }],
       },
       {
         id: 'P3',
         arrivalTime: 2,
-        bursts: [{ type: 'CPU', duration: 4 }],
+        bursts: [{ type: 'CPU', duration: 3 }],
       },
     ],
   },
   {
-    name: 'I/O Bound Beispiel',
-    description: 'Prozess wechselt mehrfach zwischen CPU und I/O',
+    name: 'SJF (Non-Preemptive)',
+    description: 'Shortest job is selected when CPU becomes free - no preemption',
+    algorithm: 'SJF',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }] },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }] },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 6 }] },
+    ],
+  },
+  {
+    name: 'Priority (Preemptive)',
+    description: 'Higher priority process preempts lower one',
+    algorithm: 'Priority',
+    preemptive: true,
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }], priority: 2 },
+      { id: 'P2', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 3 }], priority: 1 },
+      { id: 'P3', arrivalTime: 3, bursts: [{ type: 'CPU', duration: 4 }], priority: 3 },
+    ],
+  },
+  {
+    name: 'Priority (Non-Preemptive)',
+    description: 'Higher priority waits until CPU is idle',
+    algorithm: 'Priority',
+    preemptive: false,
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 6 }], priority: 2 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }], priority: 1 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 4 }], priority: 3 },
+    ],
+  },
+  {
+    name: 'I/O Bound Process',
+    description: 'Process alternates between CPU and I/O multiple times',
     algorithm: 'FCFS',
     processes: [
       {
@@ -101,8 +196,8 @@ const SCENARIOS: Scenario[] = [
     ],
   },
   {
-    name: 'Komplexes SRTF',
-    description: 'Viele kurze Prozesse unterbrechen den langen - zeigt Stärke von SRTF',
+    name: 'Complex SRTF',
+    description: 'Many short processes interrupt a long one - shows SRTF efficiency',
     algorithm: 'SRTF',
     processes: [
       { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 12 }] },
@@ -122,6 +217,7 @@ export default function ScenarioSelector() {
     setConfig({
       algorithm: scenario.algorithm,
       quantum: scenario.quantum,
+      preemptive: scenario.preemptive,
     });
     initializeSimulation();
   };
@@ -129,17 +225,17 @@ export default function ScenarioSelector() {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
-        Beispiel-Szenarien
+        Example Scenarios
       </label>
       <div className="space-y-2">
         {SCENARIOS.map((scenario) => (
           <button
             key={scenario.name}
             onClick={() => loadScenario(scenario)}
-            className="w-full text-left p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+            className="w-full text-left p-3 bg-gray-50 rounded hover:bg-blue-50 hover:border-blue-200 transition-colors border border-transparent"
           >
             <div className="font-medium text-gray-900 text-sm">{scenario.name}</div>
-            <div className="text-xs text-gray-500">{scenario.description}</div>
+            <div className="text-xs text-gray-500 mt-1">{scenario.description}</div>
           </button>
         ))}
       </div>

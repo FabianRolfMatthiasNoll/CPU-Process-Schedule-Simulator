@@ -43,7 +43,10 @@ export default function GanttChart() {
     ganttEntries,
     currentTime,
     processDefinitions,
+    config,
   } = useSimulationStore();
+
+  const showPriority = config.algorithm === 'Priority';
 
   // Get process IDs from definitions
   const processIds = processDefinitions.map((p) => p.id);
@@ -64,7 +67,7 @@ export default function GanttChart() {
       {/* Scheduled Execution View */}
       <div className="mb-6">
         <h3 className="font-semibold text-gray-900 mb-2">
-          Geplante Ausführung (bis t={currentTime})
+          Scheduled Execution (up to t={currentTime})
         </h3>
         <div className="overflow-x-auto">
           <div style={{ minWidth: `${labelWidth + maxTime * pixelsPerUnit + 40}px` }}>
@@ -157,8 +160,8 @@ export default function GanttChart() {
 
       {/* Initial Process View */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        <h3 className="font-semibold text-gray-900 mb-2">Prozess-Struktur (Ungeplant)</h3>
-        <p className="text-xs text-gray-500 mb-2">Zeigt alle Bursts der Prozesse wie sie ankommen</p>
+        <h3 className="font-semibold text-gray-900 mb-2">Process Structure (Unscheduled)</h3>
+        <p className="text-xs text-gray-500 mb-2">Shows all process bursts as they arrive</p>
 
         <div className="overflow-x-auto flex-1">
           <div style={{ minWidth: `${labelWidth + maxTime * pixelsPerUnit + 40}px` }}>
@@ -205,6 +208,9 @@ export default function GanttChart() {
                     >
                       <div className={`w-3 h-3 rounded mr-1 ${getProcessColor(proc.id)}`} />
                       {proc.id}
+                      {showPriority && proc.priority !== undefined && (
+                        <span className="ml-1 text-xs bg-gray-200 px-1 rounded">{String.fromCharCode(64 + proc.priority)}</span>
+                      )}
                     </div>
 
                     <div className="relative flex-1" style={{ height: `${rowHeight - 8}px` }}>

@@ -9,6 +9,7 @@ export type ProcessDefinition = {
   id: string;
   arrivalTime: number;
   bursts: Burst[];
+  priority?: number;  // Lower number = higher priority (for Priority scheduling)
 };
 
 export type ProcessState = "NEW" | "READY" | "RUNNING" | "BLOCKED" | "FINISHED";
@@ -29,6 +30,7 @@ export type Process = {
   responseTime: number | null;
   firstCpuTime: number | null;
   quantumUsed: number;         // Ticks used in current RR quantum slice
+  priority?: number;           // Lower = higher priority (for Priority scheduling)
 };
 
 // Complete snapshot of simulation state at a point in time (immutable)
@@ -40,6 +42,14 @@ export type StateSnapshot = {
   runningProcessId: string | null;
   ganttEntries: GanttEntry[];
   currentTickArrivals: string[];  // Process IDs that arrived at the current time
+  schedulingDecision?: SchedulingDecision;  // Why the scheduler made its decision
+};
+
+// Explanation of scheduling decision for UI
+export type SchedulingDecision = {
+  reason: string;               // Human-readable explanation in German
+  selectedProcessId: string | null;
+  alternatives?: string[];      // What other options existed
 };
 
 // Immutable snapshot of a single process (for storing in StateSnapshot)
@@ -56,8 +66,9 @@ export type ProcessSnapshot = {
 };
 
 export type SimulationConfig = {
-  algorithm: "FCFS" | "SRTF" | "RR";
+  algorithm: "FCFS" | "SJF" | "SRTF" | "RR" | "Priority";
   quantum?: number;
+  preemptive?: boolean;  // For Priority scheduling
 };
 
 export type MetricsSummary = {

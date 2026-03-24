@@ -11,7 +11,7 @@ export default function BlockedQueue() {
         <AnimatePresence mode="popLayout">
           {blockedQueue.length === 0 ? (
             <div className="text-sm text-gray-400 text-center py-8">
-              Leer
+              Empty
             </div>
           ) : (
             blockedQueue.map((processId: string, index: number) => (
@@ -30,7 +30,7 @@ export default function BlockedQueue() {
         </AnimatePresence>
       </div>
       <div className="mt-2 text-xs text-gray-500">
-        {blockedQueue.length} Prozess{blockedQueue.length !== 1 ? 'e' : ''} in I/O
+        {blockedQueue.length} process{blockedQueue.length !== 1 ? 'es' : ''} in I/O
       </div>
     </div>
   );

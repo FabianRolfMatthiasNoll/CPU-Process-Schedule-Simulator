@@ -2,7 +2,14 @@ import { useSimulationStore } from '../application';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ReadyQueue() {
-  const { readyQueue, runningProcessId, snapshots, currentSnapshotIndex, processDefinitions } = useSimulationStore();
+  const { readyQueue, runningProcessId, snapshots, currentSnapshotIndex, processDefinitions, config } = useSimulationStore();
+  const showPriority = config.algorithm === 'Priority';
+
+  // Get priority for a process
+  const getPriority = (processId: string): number | null => {
+    const procDef = processDefinitions.find(p => p.id === processId);
+    return procDef?.priority ?? null;
+  };
 
   // Calculate total remaining CPU time for a process
   const getRemainingCpu = (processId: string): number | null => {
@@ -31,7 +38,12 @@ export default function ReadyQueue() {
           {runningProcessId && (
             <div className="flex items-center gap-1">
               <div className="bg-blue-500 text-white rounded-lg px-3 py-2 text-sm font-bold shadow flex flex-col items-center">
-                <span>{runningProcessId}</span>
+                <span className="flex items-center gap-1">
+                  {runningProcessId}
+                  {showPriority && getPriority(runningProcessId) !== null && (
+                    <span className="bg-blue-700 text-xs px-1 rounded">{String.fromCharCode(64 + getPriority(runningProcessId)!)}</span>
+                  )}
+                </span>
                 <span className="text-xs opacity-80">{getRemainingCpu(runningProcessId)}</span>
               </div>
               <span className="text-gray-400 text-xs">→</span>
@@ -41,7 +53,7 @@ export default function ReadyQueue() {
           {/* Ready queue - items flow left to right */}
           <AnimatePresence mode="popLayout">
             {readyQueue.length === 0 && !runningProcessId ? (
-              <div className="text-sm text-gray-400 italic">Leer</div>
+              <div className="text-sm text-gray-400 italic">Empty</div>
             ) : (
               readyQueue.map((processId, index) => (
                 <motion.div
@@ -55,7 +67,12 @@ export default function ReadyQueue() {
                   <div className={`rounded px-3 py-2 text-sm font-medium flex flex-col items-center ${
                     index === 0 ? 'bg-green-200 border-2 border-green-500 text-green-900' : 'bg-green-100 border border-green-300 text-green-800'
                   }`}>
-                    <span className="font-bold">{processId}</span>
+                    <span className="font-bold flex items-center gap-1">
+                      {processId}
+                      {showPriority && getPriority(processId) !== null && (
+                        <span className="bg-green-600 text-white text-xs px-1 rounded">{String.fromCharCode(64 + getPriority(processId)!)}</span>
+                      )}
+                    </span>
                     <span className="text-xs opacity-70">{getRemainingCpu(processId)}</span>
                   </div>
                   {index < readyQueue.length - 1 && (
@@ -67,16 +84,16 @@ export default function ReadyQueue() {
           </AnimatePresence>
 
           {readyQueue.length === 0 && runningProcessId && (
-            <div className="text-xs text-gray-400 italic ml-2">warten...</div>
+            <div className="text-xs text-gray-400 italic ml-2">waiting...</div>
           )}
         </div>
       </div>
 
       {/* Flow indicator */}
       <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-        <span>← Läuft</span>
+        <span>← Running</span>
         <span className="flex items-center gap-1">
-          Nächster →
+          Next →
           {readyQueue.length > 0 && (
             <span className="bg-green-200 border border-green-500 text-green-900 rounded px-1 font-bold">
               {readyQueue[0]}
@@ -85,7 +102,7 @@ export default function ReadyQueue() {
         </span>
       </div>
       <div className="mt-1 text-xs text-gray-500">
-        {readyQueue.length} Prozess{readyQueue.length !== 1 ? 'e' : ''} wartend
+        {readyQueue.length} process{readyQueue.length !== 1 ? 'es' : ''} waiting
       </div>
     </div>
   );

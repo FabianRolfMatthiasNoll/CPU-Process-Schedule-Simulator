@@ -8,7 +8,7 @@ import {
   StateSnapshot,
   ProcessSnapshot,
 } from '../types';
-import { SchedulingAlgorithm, SchedulingState, ProcessInfo, FCFSAlgorithm, SRTFAlgorithm, RRAlgorithm } from '../scheduling';
+import { SchedulingAlgorithm, SchedulingState, ProcessInfo, FCFSAlgorithm, SJFAlgorithm, SRTFAlgorithm, RRAlgorithm, PriorityAlgorithm } from '../scheduling';
 
 export class SimulationEngine {
   // Configuration
@@ -27,6 +27,9 @@ export class SimulationEngine {
   // Gantt chart tracking - per-tick entries
   private ganttEntries: GanttEntry[] = [];
 
+  // Last scheduling decision for UI explanation
+  private schedulingDecision: { reason: string; selectedProcessId: string | null; alternatives?: string[] } | undefined;
+
   constructor(processes: ProcessDefinition[], config: SimulationConfig) {
     this.config = config;
     this.quantum = config.algorithm === "RR" ? (config.quantum ?? 4) : null;
@@ -38,10 +41,14 @@ export class SimulationEngine {
     switch (config.algorithm) {
       case "FCFS":
         return new FCFSAlgorithm();
+      case "SJF":
+        return new SJFAlgorithm();
       case "SRTF":
         return new SRTFAlgorithm();
       case "RR":
         return new RRAlgorithm(this.quantum!);
+      case "Priority":
+        return new PriorityAlgorithm(config.preemptive ?? true);
       default:
         throw new Error(`Unknown algorithm: ${config.algorithm}`);
     }
@@ -72,6 +79,7 @@ export class SimulationEngine {
         responseTime: null,
         firstCpuTime: null,
         quantumUsed: 0,
+        priority: def.priority,
       };
       this.processes.set(def.id, process);
     }
@@ -155,8 +163,22 @@ export class SimulationEngine {
   // ============================================
 
   private schedule(): void {
-    const nextProcessId = this.algorithm.decideNextProcess(this.buildSchedulingState());
-    if (!nextProcessId) return;
+    const stateBefore = this.buildSchedulingState();
+    const nextProcessId = this.algorithm.decideNextProcess(stateBefore);
+    if (!nextProcessId) {
+      this.schedulingDecision = {
+        reason: "No process available - CPU idle",
+        selectedProcessId: null,
+      };
+      return;
+    }
+
+    // Compute explanation based on algorithm and state
+    this.schedulingDecision = this.buildSchedulingDecision(
+      this.algorithm.name,
+      nextProcessId,
+      stateBefore
+    );
 
     // If same process is running, nothing to do
     if (this.runningProcessId === nextProcessId) {
@@ -169,6 +191,104 @@ export class SimulationEngine {
     }
 
     this.dispatchProcess(nextProcessId);
+  }
+
+  private buildSchedulingDecision(
+    algorithmName: string,
+    selectedId: string,
+    state: SchedulingState
+  ): { reason: string; selectedProcessId: string | null; alternatives?: string[] } {
+    const selectedInfo = state.processInfos.get(selectedId);
+    const runningInfo = state.runningProcessId ? state.processInfos.get(state.runningProcessId) : null;
+
+    switch (algorithmName) {
+      case "FCFS": {
+        if (state.runningProcessId !== null) {
+          return { reason: `${selectedId} continues (FCFS: no preemption)`, selectedProcessId: selectedId };
+        }
+        const alternatives = state.readyQueue.filter(id => id !== selectedId).map(id => {
+          const info = state.processInfos.get(id);
+          return `${id} (remaining: ${info?.remainingCpuTime ?? '?'})`;
+        });
+        return {
+          reason: `${selectedId} starts (FCFS: first in queue)`,
+          selectedProcessId: selectedId,
+          alternatives,
+        };
+      }
+
+      case "SJF": {
+        if (state.runningProcessId !== null) {
+          return { reason: `${selectedId} continues (SJF: non-preemptive)`, selectedProcessId: selectedId };
+        }
+        const alternatives = state.readyQueue.filter(id => id !== selectedId).map(id => {
+          const info = state.processInfos.get(id);
+          return `${id} (remaining: ${info?.remainingCpuTime ?? '?'})`;
+        });
+        return {
+          reason: `${selectedId} starts (SJF: shortest remaining: ${selectedInfo?.remainingCpuTime})`,
+          selectedProcessId: selectedId,
+          alternatives,
+        };
+      }
+
+      case "SRTF": {
+        if (state.runningProcessId !== null && state.runningProcessId !== selectedId) {
+          const runningTime = runningInfo?.remainingCpuTime ?? 0;
+          const selectedTime = selectedInfo?.remainingCpuTime ?? 0;
+          return {
+            reason: `${selectedId} preempts ${state.runningProcessId} (SRTF: ${selectedTime} < ${runningTime})`,
+            selectedProcessId: selectedId,
+            alternatives: [`${state.runningProcessId} (remaining: ${runningTime})`],
+          };
+        }
+        if (state.runningProcessId !== null) {
+          return { reason: `${selectedId} continues (SRTF: shortest remaining)`, selectedProcessId: selectedId };
+        }
+        return {
+          reason: `${selectedId} starts (SRTF: shortest remaining: ${selectedInfo?.remainingCpuTime})`,
+          selectedProcessId: selectedId,
+        };
+      }
+
+      case "RR": {
+        return {
+          reason: `${selectedId} runs (Round Robin)`,
+          selectedProcessId: selectedId,
+        };
+      }
+
+      case "Priority": {
+        const preemptive = this.config.preemptive ?? true;
+        if (state.runningProcessId !== null && state.runningProcessId !== selectedId) {
+          const runningPri = runningInfo?.priority ?? Infinity;
+          const selectedPri = selectedInfo?.priority ?? Infinity;
+          if (preemptive) {
+            return {
+              reason: `${selectedId} preempts ${state.runningProcessId} (Priority: ${selectedPri} < ${runningPri})`,
+              selectedProcessId: selectedId,
+              alternatives: [`${state.runningProcessId} (priority: ${runningPri})`],
+            };
+          } else {
+            return {
+              reason: `${state.runningProcessId} continues (Priority: non-preemptive)`,
+              selectedProcessId: state.runningProcessId,
+              alternatives: [`${selectedId} (priority: ${selectedPri}, waiting)`],
+            };
+          }
+        }
+        if (state.runningProcessId !== null) {
+          return { reason: `${selectedId} continues (Priority: no higher priority)`, selectedProcessId: selectedId };
+        }
+        return {
+          reason: `${selectedId} starts (Priority: ${selectedInfo?.priority})`,
+          selectedProcessId: selectedId,
+        };
+      }
+
+      default:
+        return { reason: `${selectedId} selected`, selectedProcessId: selectedId };
+    }
   }
 
   // ============================================
@@ -354,7 +474,7 @@ export class SimulationEngine {
         }
       }
 
-      processInfos.set(id, { id, remainingCpuTime: totalRemainingCpu });
+      processInfos.set(id, { id, remainingCpuTime: totalRemainingCpu, priority: proc.priority });
     }
 
     return {
@@ -407,6 +527,7 @@ export class SimulationEngine {
       runningProcessId: this.runningProcessId,
       ganttEntries: [...this.ganttEntries],
       currentTickArrivals,
+      schedulingDecision: this.schedulingDecision,
     };
   }
 

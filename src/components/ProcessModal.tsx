@@ -80,23 +80,23 @@ export default function ProcessModal({ isOpen, onClose }: ProcessModalProps) {
     setError(null);
 
     if (!processId.trim()) {
-      setError('Prozess-ID ist erforderlich');
+      setError('Process ID is required');
       return;
     }
     if (processes.some((p) => p.id === processId)) {
-      setError('Prozess-ID bereits vorhanden');
+      setError('Process ID already exists');
       return;
     }
     if (arrivalTime < 0) {
-      setError('Arrival Time darf nicht negativ sein');
+      setError('Arrival Time cannot be negative');
       return;
     }
     if (bursts.some((b) => b.duration <= 0)) {
-      setError('Burst-Dauer muss positiv sein');
+      setError('Burst duration must be positive');
       return;
     }
     if (!bursts.some((b) => b.type === 'CPU')) {
-      setError('Mindestens ein CPU-Burst erforderlich');
+      setError('At least one CPU burst is required');
       return;
     }
 
@@ -115,7 +115,7 @@ export default function ProcessModal({ isOpen, onClose }: ProcessModalProps) {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Prozesse definieren">
+    <Modal isOpen={isOpen} onClose={onClose} title="Define Processes">
       <div className="space-y-4">
         {error && (
           <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
@@ -129,13 +129,13 @@ export default function ProcessModal({ isOpen, onClose }: ProcessModalProps) {
             onClick={randomizeProcess}
             className="flex-1 px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm font-medium"
           >
-            Zufällig generieren
+            Generate Random
           </button>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Prozess-ID</label>
+            <label className="block text-xs text-gray-600 mb-1">Process ID</label>
             <input
               type="text"
               value={processId}
@@ -177,7 +177,7 @@ export default function ProcessModal({ isOpen, onClose }: ProcessModalProps) {
                   className="w-20 rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border text-sm"
                   min="1"
                 />
-                <span className="text-xs text-gray-500">Zeiteinheiten</span>
+                <span className="text-xs text-gray-500">time units</span>
                 {bursts.length > 1 && (
                   <button
                     type="button"
@@ -195,7 +195,7 @@ export default function ProcessModal({ isOpen, onClose }: ProcessModalProps) {
             onClick={addBurst}
             className="mt-2 text-sm text-blue-600 hover:text-blue-800"
           >
-            + Burst hinzufügen
+            + Add Burst
           </button>
         </div>
 
@@ -204,14 +204,14 @@ export default function ProcessModal({ isOpen, onClose }: ProcessModalProps) {
           onClick={handleAddProcess}
           className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-medium"
         >
-          Prozess hinzufügen
+          Add Process
         </button>
 
         {/* Existing Processes */}
         {processes.length > 0 && (
           <div className="pt-4 border-t">
             <h5 className="text-sm font-medium text-gray-700 mb-2">
-              Definierte Prozesse ({processes.length})
+              Defined Processes ({processes.length})
             </h5>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {processes.map((p) => (

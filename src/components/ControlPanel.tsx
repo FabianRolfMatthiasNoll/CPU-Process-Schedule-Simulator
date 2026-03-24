@@ -25,12 +25,12 @@ export default function ControlPanel() {
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
-      <h2 className="font-semibold text-gray-900 mb-4">Steuerung</h2>
+      <h2 className="font-semibold text-gray-900 mb-4">Controls</h2>
 
       {/* Mode Selection */}
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Modus
+          Mode
         </label>
         <div className="flex gap-2">
           {(['step', 'auto', 'practice'] as SimulationMode[]).map((m) => (
@@ -43,9 +43,9 @@ export default function ControlPanel() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {m === 'step' && 'Schritt'}
+              {m === 'step' && 'Step'}
               {m === 'auto' && 'Auto'}
-              {m === 'practice' && 'Übung'}
+              {m === 'practice' && 'Practice'}
             </button>
           ))}
         </div>
@@ -55,7 +55,7 @@ export default function ControlPanel() {
       {mode === 'auto' && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Geschwindigkeit: {speed}x
+            Speed: {speed}x
           </label>
           <input
             type="range"
@@ -75,7 +75,7 @@ export default function ControlPanel() {
           onClick={reset}
           disabled={atStart}
           className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Zurücksetzen"
+          title="Reset"
         >
           ⏮
         </button>
@@ -83,7 +83,7 @@ export default function ControlPanel() {
           onClick={() => step()}
           disabled={!canStep || mode === 'auto'}
           className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Nächster Schritt"
+          title="Next Step"
         >
           ▶▶
         </button>
@@ -93,7 +93,7 @@ export default function ControlPanel() {
             className={`px-3 py-2 rounded text-white ${
               isRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
             }`}
-            title={isRunning ? 'Pause' : 'Abspielen'}
+            title={isRunning ? 'Pause' : 'Play'}
           >
             {isRunning ? '⏸' : '▶'}
           </button>
@@ -106,14 +106,14 @@ export default function ControlPanel() {
         disabled={!canStart}
         className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
       >
-        Simulation starten
+        Start Simulation
       </button>
 
       {/* Progress */}
       {currentTime > 0 && (
         <div className="mt-4">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>Zeit</span>
+            <span>Time</span>
             <span>{currentTime}</span>
           </div>
         </div>
