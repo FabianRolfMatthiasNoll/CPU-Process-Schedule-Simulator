@@ -5,7 +5,7 @@ interface Scenario {
   name: string;
   description: string;
   processes: ProcessDefinition[];
-  algorithm: 'FCFS' | 'SJF' | 'SRTF' | 'RR' | 'Priority';
+  algorithm: 'FCFS' | 'SJF' | 'LJF' | 'SRTF' | 'LRTF' | 'RR' | 'Priority' | 'HRRN';
   quantum?: number;
   preemptive?: boolean;
 }
@@ -16,34 +16,21 @@ const SCENARIOS: Scenario[] = [
     description: '4 processes with CPU-IO-CPU bursts, staggered arrivals',
     algorithm: 'FCFS',
     processes: [
-      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 4 }] },
-      {
-        id: 'P2',
-        arrivalTime: 1,
-        bursts: [
-          { type: 'CPU', duration: 3 },
-          { type: 'IO', duration: 4 },
-          { type: 'CPU', duration: 2 },
-        ],
-      },
-      {
-        id: 'P3',
-        arrivalTime: 2,
-        bursts: [
-          { type: 'CPU', duration: 2 },
-          { type: 'IO', duration: 3 },
-          { type: 'CPU', duration: 3 },
-        ],
-      },
-      {
-        id: 'P4',
-        arrivalTime: 3,
-        bursts: [
-          { type: 'CPU', duration: 4 },
-          { type: 'IO', duration: 2 },
-          { type: 'CPU', duration: 2 },
-        ],
-      },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 4 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }, { type: 'IO', duration: 4 }, { type: 'CPU', duration: 2 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 2 }, { type: 'IO', duration: 3 }, { type: 'CPU', duration: 3 }], priority: 3 },
+      { id: 'P4', arrivalTime: 3, bursts: [{ type: 'CPU', duration: 4 }, { type: 'IO', duration: 2 }, { type: 'CPU', duration: 2 }], priority: 4 },
+    ],
+  },
+  {
+    name: 'Generic Long CPU',
+    description: '4 processes with longer CPU bursts and I/O - good for Priority/LJF/LRTF comparison',
+    algorithm: 'FCFS',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 5 }, { type: 'IO', duration: 3 }, { type: 'CPU', duration: 3 }], priority: 2 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 4 }, { type: 'IO', duration: 2 }, { type: 'CPU', duration: 3 }], priority: 1 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 6 }, { type: 'IO', duration: 3 }, { type: 'CPU', duration: 4 }], priority: 3 },
+      { id: 'P4', arrivalTime: 3, bursts: [{ type: 'CPU', duration: 4 }, { type: 'IO', duration: 2 }, { type: 'CPU', duration: 2 }], priority: 4 },
     ],
   },
   {
@@ -51,34 +38,10 @@ const SCENARIOS: Scenario[] = [
     description: 'Long IO bursts cause CPU to stall - P2 and P3 have extended IO periods',
     algorithm: 'FCFS',
     processes: [
-      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 4 }] },
-      {
-        id: 'P2',
-        arrivalTime: 1,
-        bursts: [
-          { type: 'CPU', duration: 3 },
-          { type: 'IO', duration: 7 },
-          { type: 'CPU', duration: 2 },
-        ],
-      },
-      {
-        id: 'P3',
-        arrivalTime: 2,
-        bursts: [
-          { type: 'CPU', duration: 2 },
-          { type: 'IO', duration: 6 },
-          { type: 'CPU', duration: 3 },
-        ],
-      },
-      {
-        id: 'P4',
-        arrivalTime: 3,
-        bursts: [
-          { type: 'CPU', duration: 4 },
-          { type: 'IO', duration: 2 },
-          { type: 'CPU', duration: 2 },
-        ],
-      },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 4 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }, { type: 'IO', duration: 7 }, { type: 'CPU', duration: 2 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 2 }, { type: 'IO', duration: 6 }, { type: 'CPU', duration: 3 }], priority: 3 },
+      { id: 'P4', arrivalTime: 3, bursts: [{ type: 'CPU', duration: 4 }, { type: 'IO', duration: 2 }, { type: 'CPU', duration: 2 }], priority: 4 },
     ],
   },
   {
@@ -86,9 +49,19 @@ const SCENARIOS: Scenario[] = [
     description: 'Shortest remaining time process preempts longer one when it arrives',
     algorithm: 'SRTF',
     processes: [
-      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }] },
-      { id: 'P2', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 3 }] },
-      { id: 'P3', arrivalTime: 4, bursts: [{ type: 'CPU', duration: 2 }] },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }], priority: 1 },
+      { id: 'P2', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 3 }], priority: 2 },
+      { id: 'P3', arrivalTime: 4, bursts: [{ type: 'CPU', duration: 2 }], priority: 3 },
+    ],
+  },
+  {
+    name: 'LRTF Preemption',
+    description: 'Longest remaining time preempts shorter - can starve short jobs',
+    algorithm: 'LRTF',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 3 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 5 }], priority: 2 },
+      { id: 'P3', arrivalTime: 3, bursts: [{ type: 'CPU', duration: 2 }], priority: 3 },
     ],
   },
   {
@@ -96,25 +69,9 @@ const SCENARIOS: Scenario[] = [
     description: 'CPU and I/O bursts - P1 blocks while P2 runs',
     algorithm: 'FCFS',
     processes: [
-      {
-        id: 'P1',
-        arrivalTime: 0,
-        bursts: [
-          { type: 'CPU', duration: 3 },
-          { type: 'IO', duration: 4 },
-          { type: 'CPU', duration: 3 },
-        ],
-      },
-      {
-        id: 'P2',
-        arrivalTime: 1,
-        bursts: [{ type: 'CPU', duration: 4 }],
-      },
-      {
-        id: 'P3',
-        arrivalTime: 2,
-        bursts: [{ type: 'CPU', duration: 2 }],
-      },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 3 }, { type: 'IO', duration: 4 }, { type: 'CPU', duration: 3 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 4 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 2 }], priority: 3 },
     ],
   },
   {
@@ -123,21 +80,9 @@ const SCENARIOS: Scenario[] = [
     algorithm: 'RR',
     quantum: 3,
     processes: [
-      {
-        id: 'P1',
-        arrivalTime: 0,
-        bursts: [{ type: 'CPU', duration: 6 }],
-      },
-      {
-        id: 'P2',
-        arrivalTime: 1,
-        bursts: [{ type: 'CPU', duration: 4 }],
-      },
-      {
-        id: 'P3',
-        arrivalTime: 2,
-        bursts: [{ type: 'CPU', duration: 3 }],
-      },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 6 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 4 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 3 }], priority: 3 },
     ],
   },
   {
@@ -145,9 +90,19 @@ const SCENARIOS: Scenario[] = [
     description: 'Shortest job is selected when CPU becomes free - no preemption',
     algorithm: 'SJF',
     processes: [
-      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }] },
-      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }] },
-      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 6 }] },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 6 }], priority: 3 },
+    ],
+  },
+  {
+    name: 'LJF (Non-Preemptive)',
+    description: 'Longest job is selected when CPU becomes free - no preemption',
+    algorithm: 'LJF',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 5 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 10 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 3 }], priority: 3 },
     ],
   },
   {
@@ -173,26 +128,22 @@ const SCENARIOS: Scenario[] = [
     ],
   },
   {
+    name: 'HRRN',
+    description: 'Highest Response Ratio Next - favors jobs that have waited longer',
+    algorithm: 'HRRN',
+    processes: [
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 8 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 4 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 6 }], priority: 3 },
+    ],
+  },
+  {
     name: 'I/O Bound Process',
     description: 'Process alternates between CPU and I/O multiple times',
     algorithm: 'FCFS',
     processes: [
-      {
-        id: 'P1',
-        arrivalTime: 0,
-        bursts: [
-          { type: 'CPU', duration: 2 },
-          { type: 'IO', duration: 5 },
-          { type: 'CPU', duration: 2 },
-          { type: 'IO', duration: 3 },
-          { type: 'CPU', duration: 2 },
-        ],
-      },
-      {
-        id: 'P2',
-        arrivalTime: 1,
-        bursts: [{ type: 'CPU', duration: 6 }],
-      },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 2 }, { type: 'IO', duration: 5 }, { type: 'CPU', duration: 2 }, { type: 'IO', duration: 3 }, { type: 'CPU', duration: 2 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 6 }], priority: 2 },
     ],
   },
   {
@@ -200,11 +151,11 @@ const SCENARIOS: Scenario[] = [
     description: 'Many short processes interrupt a long one - shows SRTF efficiency',
     algorithm: 'SRTF',
     processes: [
-      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 12 }] },
-      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }] },
-      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 2 }] },
-      { id: 'P4', arrivalTime: 3, bursts: [{ type: 'CPU', duration: 4 }] },
-      { id: 'P5', arrivalTime: 4, bursts: [{ type: 'CPU', duration: 2 }] },
+      { id: 'P1', arrivalTime: 0, bursts: [{ type: 'CPU', duration: 12 }], priority: 1 },
+      { id: 'P2', arrivalTime: 1, bursts: [{ type: 'CPU', duration: 3 }], priority: 2 },
+      { id: 'P3', arrivalTime: 2, bursts: [{ type: 'CPU', duration: 2 }], priority: 3 },
+      { id: 'P4', arrivalTime: 3, bursts: [{ type: 'CPU', duration: 4 }], priority: 4 },
+      { id: 'P5', arrivalTime: 4, bursts: [{ type: 'CPU', duration: 2 }], priority: 5 },
     ],
   },
 ];
