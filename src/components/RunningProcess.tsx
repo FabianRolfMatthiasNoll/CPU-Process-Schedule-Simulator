@@ -2,21 +2,25 @@ import { useSimulationStore } from '../application';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function RunningProcess() {
-  const { runningProcessId, snapshots, currentSnapshotIndex } = useSimulationStore();
+  const { runningProcessId, snapshots, currentSnapshotIndex, processDefinitions, config } = useSimulationStore();
+  const showHRRN = config.algorithm === 'HRRN';
 
-  // Get remaining CPU time for running process
-  let remainingCpu = null;
-  if (runningProcessId && currentSnapshotIndex >= 0) {
+  // Calculate total remaining CPU time for a process
+  const getRemainingCpu = (processId: string): number | null => {
+    if (currentSnapshotIndex < 0) return null;
     const snapshot = snapshots[currentSnapshotIndex];
-    const procSnap = snapshot?.processes.get(runningProcessId);
-    if (procSnap) {
-      // Calculate remaining CPU time from current burst + future bursts
-      remainingCpu = procSnap.remainingBurstTime;
-      for (let i = procSnap.currentBurstIndex + 1; i < snapshot.processes.get(runningProcessId)?.burstStartTime!; i++) {
-        // This is a simplified version - we'd need access to the full burst info
+    const procDef = processDefinitions.find(p => p.id === processId);
+    const procSnap = snapshot?.processes.get(processId);
+    if (!procDef || !procSnap) return null;
+
+    let total = procSnap.remainingBurstTime;
+    for (let i = procSnap.currentBurstIndex + 1; i < procDef.bursts.length; i++) {
+      if (procDef.bursts[i].type === 'CPU') {
+        total += procDef.bursts[i].duration;
       }
     }
-  }
+    return total;
+  };
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
@@ -33,9 +37,7 @@ export default function RunningProcess() {
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             >
               <div className="text-xl">{runningProcessId}</div>
-              {remainingCpu !== null && (
-                <div className="text-sm opacity-80">Rem: {remainingCpu}</div>
-              )}
+              <div className="text-sm opacity-80">Rem: {getRemainingCpu(runningProcessId)}</div>
             </motion.div>
           ) : (
             <motion.div

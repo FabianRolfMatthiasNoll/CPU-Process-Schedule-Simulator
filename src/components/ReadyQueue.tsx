@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function ReadyQueue() {
   const { readyQueue, runningProcessId, snapshots, currentSnapshotIndex, processDefinitions, config } = useSimulationStore();
   const showPriority = config.algorithm === 'Priority';
+  const showHRRN = config.algorithm === 'HRRN';
 
   // Get priority for a process
   const getPriority = (processId: string): number | null => {
@@ -29,9 +30,26 @@ export default function ReadyQueue() {
     return total;
   };
 
+  // Calculate Response Ratio for HRRN
+  const getResponseRatio = (processId: string): number | null => {
+    if (currentSnapshotIndex < 0) return null;
+    const snapshot = snapshots[currentSnapshotIndex];
+    const procSnap = snapshot?.processes.get(processId);
+    if (!procSnap) return null;
+
+    const burstTime = getRemainingCpu(processId);
+    if (burstTime === null || burstTime === 0) return null;
+
+    const waitingTime = procSnap.waitingTime;
+    return (waitingTime + burstTime) / burstTime;
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-4">
-      <h3 className="font-semibold text-gray-900 mb-3">Ready Queue</h3>
+      <h3 className="font-semibold text-gray-900 mb-3">
+        Ready Queue
+        {showHRRN && <span className="ml-2 text-xs font-normal text-gray-500">(HRRN: RR shown)</span>}
+      </h3>
       <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 min-h-[80px]">
         <div className="flex items-center gap-2 overflow-x-auto">
           {/* Running process on the LEFT (next to be dispatched) */}
@@ -73,7 +91,11 @@ export default function ReadyQueue() {
                         <span className="bg-green-600 text-white text-xs px-1 rounded">{String.fromCharCode(64 + getPriority(processId)!)}</span>
                       )}
                     </span>
-                    <span className="text-xs opacity-70">{getRemainingCpu(processId)}</span>
+                    {showHRRN ? (
+                      <span className="text-xs opacity-70">RR: {getResponseRatio(processId)?.toFixed(2)}</span>
+                    ) : (
+                      <span className="text-xs opacity-70">{getRemainingCpu(processId)}</span>
+                    )}
                   </div>
                   {index < readyQueue.length - 1 && (
                     <span className="text-gray-300 text-xs">→</span>
@@ -88,6 +110,14 @@ export default function ReadyQueue() {
           )}
         </div>
       </div>
+
+      {/* HRRN Formula explanation */}
+      {showHRRN && (
+        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+          <span className="font-medium text-yellow-800">HRRN Formula:</span>
+          <span className="text-yellow-700 ml-1">RR = (Wait + Burst) / Burst</span>
+        </div>
+      )}
 
       {/* Flow indicator */}
       <div className="mt-2 flex items-center justify-between text-xs text-gray-500">

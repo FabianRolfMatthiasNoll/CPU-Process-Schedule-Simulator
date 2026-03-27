@@ -2,6 +2,7 @@ export interface ProcessInfo {
   id: string;
   remainingCpuTime: number;  // Total remaining CPU time (current + future bursts)
   priority?: number;         // Lower = higher priority (for Priority scheduling)
+  waitingTime?: number;      // Time spent waiting in ready queue (for HRRN)
 }
 
 export interface SchedulingState {

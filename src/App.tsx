@@ -6,14 +6,13 @@ import ReadyQueue from './components/ReadyQueue';
 import BlockedQueue from './components/BlockedQueue';
 import RunningProcess from './components/RunningProcess';
 import MetricsDisplay from './components/MetricsDisplay';
-import ProcessModal from './components/ProcessModal';
 import ArrivalsQueue from './components/ArrivalsQueue';
-import PracticeMode from './components/PracticeMode';
 import ScenarioSelector from './components/ScenarioSelector';
+import GanttDrawer from './components/GanttDrawer';
 
 function App() {
-  const [showProcessModal, setShowProcessModal] = useState(false);
   const [showExamples, setShowExamples] = useState(false);
+  const [activeTab, setActiveTab] = useState<'simulate' | 'draw'>('simulate');
   const {
     mode,
     setMode,
@@ -64,9 +63,12 @@ function App() {
             >
               <option value="FCFS">FCFS (First Come First Serve)</option>
               <option value="SJF">SJF (Shortest Job First)</option>
+              <option value="LJF">LJF (Longest Job First)</option>
               <option value="SRTF">SRTF (Shortest Remaining Time First)</option>
+              <option value="LRTF">LRTF (Longest Remaining Time First)</option>
               <option value="RR">Round Robin</option>
               <option value="Priority">Priority Scheduling</option>
+              <option value="HRRN">HRRN (Highest Response Ratio Next)</option>
             </select>
 
             {config.algorithm === 'RR' && (
@@ -115,7 +117,7 @@ function App() {
               Mode
             </label>
             <div className="flex gap-1">
-              {(['step', 'auto', 'practice'] as SimulationMode[]).map((m) => (
+              {(['step', 'auto'] as SimulationMode[]).map((m) => (
                 <button
                   key={m}
                   onClick={() => setMode(m)}
@@ -127,7 +129,6 @@ function App() {
                 >
                   {m === 'step' && 'Step'}
                   {m === 'auto' && 'Auto'}
-                  {m === 'practice' && 'Practice'}
                 </button>
               ))}
             </div>
@@ -193,16 +194,15 @@ function App() {
           {/* Action Buttons */}
           <div className="flex gap-2">
             <button
-              onClick={() => setShowExamples(!showExamples)}
-              className="flex-1 px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+              onClick={() => {
+                setShowExamples(!showExamples);
+                if (!showExamples) setActiveTab('simulate');
+              }}
+              className={`flex-1 px-3 py-1.5 rounded text-sm ${
+                showExamples ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
             >
-              {showExamples ? 'Hide Examples' : 'Examples'}
-            </button>
-            <button
-              onClick={() => setShowProcessModal(true)}
-              className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            >
-              Add Process
+              Examples
             </button>
           </div>
 
@@ -213,7 +213,7 @@ function App() {
             </div>
           )}
 
-          {/* Metrics - moved to sidebar */}
+          {/* Metrics */}
           <MetricsDisplay />
         </div>
 
@@ -228,39 +228,65 @@ function App() {
                   {currentTime}
                 </span>
               </div>
-              <div>
-                <span className="text-sm text-gray-500">Mode:</span>
-                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-sm font-medium">
-                  {mode === 'auto' && 'Auto'}
-                  {mode === 'step' && 'Step'}
-                  {mode === 'practice' && 'Practice'}
-                </span>
+              <div className="flex items-center gap-4">
+                {/* Tab Toggle */}
+                <div className="flex rounded-lg overflow-hidden border">
+                  <button
+                    onClick={() => setActiveTab('simulate')}
+                    className={`px-4 py-1.5 text-sm font-medium ${
+                      activeTab === 'simulate'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Simulate
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('draw')}
+                    className={`px-4 py-1.5 text-sm font-medium ${
+                      activeTab === 'draw'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Draw
+                  </button>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500">Mode:</span>
+                  <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-sm font-medium">
+                    {mode === 'auto' && 'Auto'}
+                    {mode === 'step' && 'Step'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Process State Visualization */}
-          <div className="grid grid-cols-4 gap-4 flex-shrink-0 mt-4">
-            <ArrivalsQueue />
-            <RunningProcess />
-            <ReadyQueue />
-            <BlockedQueue />
-          </div>
+          {/* Content based on tab */}
+          {activeTab === 'simulate' ? (
+            <>
+              {/* Process State Visualization */}
+              <div className="grid grid-cols-4 gap-4 flex-shrink-0 mt-4">
+                <ArrivalsQueue />
+                <RunningProcess />
+                <ReadyQueue />
+                <BlockedQueue />
+              </div>
 
-          {/* Gantt Chart - Scrollable */}
-          <div className="flex-1 overflow-hidden mt-4">
-            <GanttChart />
-          </div>
-
-          {/* Practice Mode */}
-          {mode === 'practice' && <PracticeMode />}
+              {/* Gantt Chart - Scrollable */}
+              <div className="flex-1 overflow-hidden mt-4">
+                <GanttChart />
+              </div>
+            </>
+          ) : (
+            /* Draw Mode */
+            <div className="flex-1 overflow-hidden mt-4">
+              <GanttDrawer />
+            </div>
+          )}
         </div>
       </main>
-
-      <ProcessModal
-        isOpen={showProcessModal}
-        onClose={() => setShowProcessModal(false)}
-      />
     </div>
   );
 }

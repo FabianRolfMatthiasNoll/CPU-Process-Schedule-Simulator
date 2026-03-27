@@ -66,7 +66,7 @@ export type ProcessSnapshot = {
 };
 
 export type SimulationConfig = {
-  algorithm: "FCFS" | "SJF" | "SRTF" | "RR" | "Priority";
+  algorithm: "FCFS" | "SJF" | "LJF" | "SRTF" | "LRTF" | "RR" | "Priority" | "HRRN";
   quantum?: number;
   preemptive?: boolean;  // For Priority scheduling
 };

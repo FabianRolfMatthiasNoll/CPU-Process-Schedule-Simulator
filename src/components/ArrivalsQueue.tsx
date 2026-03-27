@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function ArrivalsQueue() {
   const { currentTime, snapshots, currentSnapshotIndex, processDefinitions, config } = useSimulationStore();
   const showPriority = config.algorithm === 'Priority';
+  const showHRRN = config.algorithm === 'HRRN';
 
   // Get processes that arrived at the current tick
   const arrivals: string[] = [];
@@ -39,6 +40,21 @@ export default function ArrivalsQueue() {
     return procDef?.priority ?? null;
   };
 
+  // Calculate Response Ratio for HRRN
+  const getResponseRatio = (processId: string): number | null => {
+    if (currentSnapshotIndex < 0) return null;
+    const snapshot = snapshots[currentSnapshotIndex];
+    const procSnap = snapshot?.processes.get(processId);
+    if (!procSnap) return null;
+
+    const burstTime = getRemainingCpu(processId);
+    if (burstTime === null || burstTime === 0) return null;
+
+    // New arrivals have 0 waiting time initially
+    const waitingTime = procSnap.waitingTime;
+    return (waitingTime + burstTime) / burstTime;
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <h3 className="font-semibold text-gray-900 mb-3">New Arrivals</h3>
@@ -67,7 +83,11 @@ export default function ArrivalsQueue() {
                         <span className="bg-purple-600 text-white text-xs px-1 rounded">{String.fromCharCode(64 + getPriority(processId)!)}</span>
                       )}
                     </span>
-                    <span className="text-xs opacity-70">Rem: {getRemainingCpu(processId)}</span>
+                    {showHRRN ? (
+                      <span className="text-xs opacity-70">RR: {getResponseRatio(processId)?.toFixed(2)}</span>
+                    ) : (
+                      <span className="text-xs opacity-70">Rem: {getRemainingCpu(processId)}</span>
+                    )}
                   </motion.div>
                 ))}
               </motion.div>

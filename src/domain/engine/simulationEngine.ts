@@ -8,7 +8,7 @@ import {
   StateSnapshot,
   ProcessSnapshot,
 } from '../types';
-import { SchedulingAlgorithm, SchedulingState, ProcessInfo, FCFSAlgorithm, SJFAlgorithm, SRTFAlgorithm, RRAlgorithm, PriorityAlgorithm } from '../scheduling';
+import { SchedulingAlgorithm, SchedulingState, ProcessInfo, FCFSAlgorithm, SJFAlgorithm, LJFAlgorithm, SRTFAlgorithm, LRTFAlgorithm, RRAlgorithm, PriorityAlgorithm, HRRNAlgorithm } from '../scheduling';
 
 export class SimulationEngine {
   // Configuration
@@ -43,12 +43,18 @@ export class SimulationEngine {
         return new FCFSAlgorithm();
       case "SJF":
         return new SJFAlgorithm();
+      case "LJF":
+        return new LJFAlgorithm();
       case "SRTF":
         return new SRTFAlgorithm();
+      case "LRTF":
+        return new LRTFAlgorithm();
       case "RR":
         return new RRAlgorithm(this.quantum!);
       case "Priority":
         return new PriorityAlgorithm(config.preemptive ?? true);
+      case "HRRN":
+        return new HRRNAlgorithm();
       default:
         throw new Error(`Unknown algorithm: ${config.algorithm}`);
     }
@@ -232,6 +238,21 @@ export class SimulationEngine {
         };
       }
 
+      case "LJF": {
+        if (state.runningProcessId !== null) {
+          return { reason: `${selectedId} continues (LJF: non-preemptive)`, selectedProcessId: selectedId };
+        }
+        const alternatives = state.readyQueue.filter(id => id !== selectedId).map(id => {
+          const info = state.processInfos.get(id);
+          return `${id} (remaining: ${info?.remainingCpuTime ?? '?'})`;
+        });
+        return {
+          reason: `${selectedId} starts (LJF: longest remaining: ${selectedInfo?.remainingCpuTime})`,
+          selectedProcessId: selectedId,
+          alternatives,
+        };
+      }
+
       case "SRTF": {
         if (state.runningProcessId !== null && state.runningProcessId !== selectedId) {
           const runningTime = runningInfo?.remainingCpuTime ?? 0;
@@ -247,6 +268,25 @@ export class SimulationEngine {
         }
         return {
           reason: `${selectedId} starts (SRTF: shortest remaining: ${selectedInfo?.remainingCpuTime})`,
+          selectedProcessId: selectedId,
+        };
+      }
+
+      case "LRTF": {
+        if (state.runningProcessId !== null && state.runningProcessId !== selectedId) {
+          const runningTime = runningInfo?.remainingCpuTime ?? 0;
+          const selectedTime = selectedInfo?.remainingCpuTime ?? 0;
+          return {
+            reason: `${selectedId} preempts ${state.runningProcessId} (LRTF: ${selectedTime} > ${runningTime})`,
+            selectedProcessId: selectedId,
+            alternatives: [`${state.runningProcessId} (remaining: ${runningTime})`],
+          };
+        }
+        if (state.runningProcessId !== null) {
+          return { reason: `${selectedId} continues (LRTF: longest remaining)`, selectedProcessId: selectedId };
+        }
+        return {
+          reason: `${selectedId} starts (LRTF: longest remaining: ${selectedInfo?.remainingCpuTime})`,
           selectedProcessId: selectedId,
         };
       }
@@ -283,6 +323,26 @@ export class SimulationEngine {
         return {
           reason: `${selectedId} starts (Priority: ${selectedInfo?.priority})`,
           selectedProcessId: selectedId,
+        };
+      }
+
+      case "HRRN": {
+        if (state.runningProcessId !== null) {
+          return { reason: `${selectedId} continues (HRRN: non-preemptive)`, selectedProcessId: selectedId };
+        }
+        const waitingTime = selectedInfo?.waitingTime ?? 0;
+        const burstTime = selectedInfo?.remainingCpuTime ?? 1;
+        const responseRatio = ((waitingTime + burstTime) / burstTime).toFixed(2);
+        const alternatives = state.readyQueue.filter(id => id !== selectedId).map(id => {
+          const info = state.processInfos.get(id);
+          const wt = info?.waitingTime ?? 0;
+          const bt = info?.remainingCpuTime ?? 1;
+          return `${id} (RR: ${((wt + bt) / bt).toFixed(2)})`;
+        });
+        return {
+          reason: `${selectedId} starts (HRRN: RR=${responseRatio})`,
+          selectedProcessId: selectedId,
+          alternatives,
         };
       }
 
@@ -474,7 +534,7 @@ export class SimulationEngine {
         }
       }
 
-      processInfos.set(id, { id, remainingCpuTime: totalRemainingCpu, priority: proc.priority });
+      processInfos.set(id, { id, remainingCpuTime: totalRemainingCpu, priority: proc.priority, waitingTime: proc.waitingTime });
     }
 
     return {
