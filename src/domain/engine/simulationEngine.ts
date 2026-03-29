@@ -331,12 +331,13 @@ export class SimulationEngine {
           return { reason: `${selectedId} continues (HRRN: non-preemptive)`, selectedProcessId: selectedId };
         }
         const waitingTime = selectedInfo?.waitingTime ?? 0;
-        const burstTime = selectedInfo?.remainingCpuTime ?? 1;
+        // HRRN uses only current CPU burst, not total remaining
+        const burstTime = selectedInfo?.currentBurstTime ?? 1;
         const responseRatio = ((waitingTime + burstTime) / burstTime).toFixed(2);
         const alternatives = state.readyQueue.filter(id => id !== selectedId).map(id => {
           const info = state.processInfos.get(id);
           const wt = info?.waitingTime ?? 0;
-          const bt = info?.remainingCpuTime ?? 1;
+          const bt = info?.currentBurstTime ?? 1;
           return `${id} (RR: ${((wt + bt) / bt).toFixed(2)})`;
         });
         return {
@@ -511,6 +512,7 @@ export class SimulationEngine {
         process.state = "READY";
         process.remainingBurstTime = nextBurst.duration;
         process.burstStartTime = this.time + 1; // Will be set when dispatched
+        process.waitingTime = 0; // Reset waiting time for HRRN
         this.readyQueue.push(processId);
       }
     }
@@ -534,7 +536,20 @@ export class SimulationEngine {
         }
       }
 
-      processInfos.set(id, { id, remainingCpuTime: totalRemainingCpu, priority: proc.priority, waitingTime: proc.waitingTime });
+      // Get current CPU burst duration only (for HRRN)
+      let currentBurstTime = 0;
+      const currentBurst = proc.bursts[proc.currentBurstIndex];
+      if (currentBurst && currentBurst.type === "CPU") {
+        currentBurstTime = currentBurst.duration;
+      }
+
+      processInfos.set(id, {
+        id,
+        remainingCpuTime: totalRemainingCpu,
+        currentBurstTime,
+        priority: proc.priority,
+        waitingTime: proc.waitingTime
+      });
     }
 
     return {

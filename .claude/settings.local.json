@@ -8,7 +8,9 @@
       "Bash(npx vitest:*)",
       "Bash(pkill -f \"vite\")",
       "Bash(pkill -f vite)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "WebSearch",
+      "WebFetch(domain:en.wikipedia.org)"
     ]
   }
 }

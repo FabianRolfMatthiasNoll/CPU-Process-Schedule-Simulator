@@ -30,14 +30,28 @@ export default function ReadyQueue() {
     return total;
   };
 
-  // Calculate Response Ratio for HRRN
+  // Get only current CPU burst duration (for HRRN)
+  const getCurrentBurstDuration = (processId: string): number | null => {
+    if (currentSnapshotIndex < 0) return null;
+    const snapshot = snapshots[currentSnapshotIndex];
+    const procDef = processDefinitions.find(p => p.id === processId);
+    const procSnap = snapshot?.processes.get(processId);
+    if (!procDef || !procSnap) return null;
+
+    const currentBurst = procDef.bursts[procSnap.currentBurstIndex];
+    if (!currentBurst || currentBurst.type !== 'CPU') return null;
+    return currentBurst.duration;
+  };
+
+  // Calculate Response Ratio for HRRN (using only current burst)
   const getResponseRatio = (processId: string): number | null => {
     if (currentSnapshotIndex < 0) return null;
     const snapshot = snapshots[currentSnapshotIndex];
     const procSnap = snapshot?.processes.get(processId);
     if (!procSnap) return null;
 
-    const burstTime = getRemainingCpu(processId);
+    // HRRN uses only current CPU burst, not total remaining
+    const burstTime = getCurrentBurstDuration(processId);
     if (burstTime === null || burstTime === 0) return null;
 
     const waitingTime = procSnap.waitingTime;
